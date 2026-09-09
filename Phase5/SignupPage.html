@@ -16,10 +16,16 @@
         <input id="signupEmail" type="email" required autocomplete="email" />
 
         <label for="signupPassword">Password</label>
-        <input id="signupPassword" type="password" required autocomplete="new-password" />
+        <div class="password-wrap">
+          <input id="signupPassword" type="password" required autocomplete="new-password" />
+          <button type="button" class="eye-btn" data-eye="signupPassword" aria-label="Show password"></button>
+        </div>
 
         <label for="signupConfirmPassword">Confirm Password</label>
-        <input id="signupConfirmPassword" type="password" required autocomplete="new-password" />
+        <div class="password-wrap">
+          <input id="signupConfirmPassword" type="password" required autocomplete="new-password" />
+          <button type="button" class="eye-btn" data-eye="signupConfirmPassword" aria-label="Show password"></button>
+        </div>
 
         <div id="signupError" class="error" aria-live="polite"></div>
         <button type="submit">Sign Up</button>

@@ -28,6 +28,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/api/auth", require("./routes/auth"));
+app.use("/api/admin", require("./routes/admin"));
 
 // IMPORTANT: do not expose .env, node_modules, server internals via static
 const staticRoot = __dirname;
