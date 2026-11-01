@@ -31,6 +31,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Accounts created before OTP have no value stored, so they read as unverified until their next login
+    emailVerified: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

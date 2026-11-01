@@ -116,9 +116,8 @@
                 method: "POST",
                 body: JSON.stringify({ email, password }),
               });
-              if (data.token) localStorage.setItem(ADMIN_TOKEN_KEY, data.token);
-              if (data.admin?.email) localStorage.setItem(ADMIN_USER_KEY, data.admin.email);
-              window.location.href = "AdminDashboard.html";
+              sessionStorage.setItem("otpPending", JSON.stringify({ pendingToken: data.pendingToken, maskedEmail: data.maskedEmail, flow: "admin" }));
+              window.location.href = "OtpPage.html";
             } catch (err) {
               showError(err.message);
             } finally {

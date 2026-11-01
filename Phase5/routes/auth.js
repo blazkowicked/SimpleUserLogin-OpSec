@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const { body, validationResult } = require("express-validator");
 const bcrypt = require("bcrypt");
@@ -5,9 +6,13 @@ const jwt = require("jsonwebtoken");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
+const OtpChallenge = require("../models/OtpChallenge");
+const PasswordReset = require("../models/PasswordReset");
 const auth = require("../middleware/auth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const getRealIp = require("../utils/getRealIp");
+const { sendMail, buildUrl } = require("../utils/mailer");
+const otp = require("../utils/otp");
 
 const router = express.Router();
 
@@ -15,6 +20,8 @@ const SALT_ROUNDS = 10;
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_ROUNDS);
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
+const MAX_SIGNUP_EMAILS_PER_ADDRESS = 3;
+const RESET_TTL_MS = 20 * 60 * 1000;
 
 const authLoginIeLimiter = createRateLimiter({
   scope: "auth_login_ie",
@@ -44,6 +51,62 @@ const authSignupIpLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
+const otpVerifyLimiter = createRateLimiter({
+  scope: "auth_otp_verify",
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const otpResendLimiter = createRateLimiter({
+  scope: "auth_otp_resend",
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const forgotIpLimiter = createRateLimiter({
+  scope: "auth_forgot_ip",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const forgotEmailLimiter = createRateLimiter({
+  scope: "auth_forgot_email",
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  keyFn: (req) => `email:${String(req.body?.email || "").toLowerCase().trim()}`,
+  message: "Too many requests, please try again later.",
+});
+
+const resetIpLimiter = createRateLimiter({
+  scope: "auth_reset_ip",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const passwordRules = () =>
+  body("password")
+    .isLength({ min: 8, max: 128 })
+    .withMessage("Password must be at least 8 characters")
+    .matches(/[A-Za-z]/)
+    .withMessage("Password must contain letters");
+
+// Awaited, unlike the older fire-and-forget writes: Vercel can kill work left running after the response
+function audit(email, action, actor) {
+  return AuditLog.create({ email, action, actor }).catch((err) => console.error(`[audit ${action}]`, err));
+}
+
+function hashResetToken(token) {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 function isDBReady(res) {
   if (mongoose.connection.readyState !== 1) {
     res.status(503).json({
@@ -67,14 +130,11 @@ router.post(
   authSignupIpLimiter,
   [
     body("email").trim().isEmail().withMessage("Valid email required").isLength({ max: 254 }),
-    body("password")
-      .isLength({ min: 8, max: 128 })
-      .withMessage("Password must be at least 8 characters")
-      .matches(/[A-Za-z]/)
-      .withMessage("Password must contain letters"),
+    passwordRules(),
   ],
   async (req, res) => {
     if (!isDBReady(res)) return;
+    const startedAt = Date.now();
     const errors = validationResult(req);
     if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg, errors: errors.array() });
 
@@ -84,18 +144,30 @@ router.post(
     }
     try {
       const normalized = email.toLowerCase().trim();
-      const existing = await User.findOne({ email: normalized });
-      if (existing) return res.status(409).json({ message: "Email already registered" });
+      const [existing, recentAttempts, passwordHash] = await Promise.all([
+        User.exists({ email: normalized }),
+        OtpChallenge.countDocuments({ purpose: "signup", email: normalized }),
+        bcrypt.hash(password, SALT_ROUNDS),
+      ]);
 
-      const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const user = await User.create({ email: normalized, passwordHash, tokenVersion: 0, failedLoginAttempts: 0, lockUntil: null, isLocked: false });
-      AuditLog.create({ email: normalized, action: "signup", actor: normalized }).catch((err) => console.error("[audit signup]", err));
-      const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
-      return res.status(201).json({ token, user: { id: user._id, email: user.email } });
+      // Each attempt gets its own challenge, so a code can only ever confirm the password it was requested with.
+      // Registered addresses get a decoy: same response, a notice instead of a code, and it can never verify.
+      let delivery = existing ? "notice" : "code";
+      if (recentAttempts >= MAX_SIGNUP_EMAILS_PER_ADDRESS) delivery = "none";
+
+      const challenge = await otp.createChallenge({
+        purpose: "signup",
+        email: normalized,
+        pendingPasswordHash: existing ? null : passwordHash,
+        delivery,
+      });
+      await audit(normalized, existing ? "signup_existing_email" : "otp_sent", null);
+      await otp.waitUntilPaced(startedAt);
+      return res.status(202).json(otp.pendingResponse(challenge));
     } catch (err) {
-      console.error("[signup]", err);
-      if (err.code === 11000) return res.status(409).json({ message: "Email already registered" });
-      return res.status(500).json({ message: "Server error during signup" });
+      console.error("[signup]", err.code, err.message);
+      await otp.waitUntilPaced(startedAt);
+      return res.status(502).json({ message: "We couldn't send your verification email. Please try again." });
     }
   },
 );
@@ -148,16 +220,15 @@ router.post(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      if (user.failedLoginAttempts !== 0 || user.lockUntil) {
-        user.failedLoginAttempts = 0;
-        user.lockUntil = null;
-        user.isLocked = false;
-        await user.save();
+      // Lock counters are cleared in /verify-otp, so a stolen password alone cannot reset them
+      try {
+        const challenge = await otp.startLoginChallenge({ purpose: "login", email: user.email, subjectId: user._id });
+        await audit(user.email, "otp_sent", null);
+        return res.json(otp.pendingResponse(challenge));
+      } catch (err) {
+        console.error("[login otp]", err.code, err.message);
+        return res.status(502).json({ message: "We couldn't send your verification code. Please try again." });
       }
-
-      AuditLog.create({ email: normalized, action: "login_success", actor: normalized }).catch((err) => console.error("[audit login_success]", err));
-      const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
-      return res.json({ token, user: { id: user._id, email: user.email } });
     } catch (err) {
       console.error("[login]", err);
       try {
@@ -167,6 +238,149 @@ router.post(
     }
   },
 );
+
+async function completeSignup(challenge, res) {
+  try {
+    const user = await User.create({ email: challenge.email, passwordHash: challenge.pendingPasswordHash, emailVerified: true });
+    await audit(user.email, "signup", user.email);
+    const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
+    return res.status(201).json({ token, user: { id: user._id, email: user.email } });
+  } catch (err) {
+    if (err.code !== 11000) console.error("[signup verify]", err);
+    return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  }
+}
+
+async function completeLogin(challenge, res) {
+  const user = await User.findById(challenge.subjectId);
+  if (!user || (user.lockUntil && user.lockUntil > new Date())) {
+    return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  }
+  user.failedLoginAttempts = 0;
+  user.lockUntil = null;
+  user.isLocked = false;
+  user.emailVerified = true;
+  await user.save();
+  await audit(user.email, "login_success", user.email);
+  const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
+  return res.json({ token, user: { id: user._id, email: user.email } });
+}
+
+// Five wrong codes count as one failed login, so repeated logins cannot keep guessing
+async function recordOtpExhausted(challenge) {
+  const user = await User.findById(challenge.subjectId);
+  if (!user) return;
+  user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+  if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
+    user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+    user.isLocked = true;
+    await audit(user.email, "account_locked", null);
+  }
+  await user.save();
+}
+
+// POST /api/auth/verify-otp
+router.post("/verify-otp", otpVerifyLimiter, [body("code").isString().matches(/^\d{6}$/)], async (req, res) => {
+  if (!isDBReady(res)) return;
+  const pending = otp.verifyPendingToken(req.body.pendingToken, ["signup", "login"]);
+  if (!pending) return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  if (!validationResult(req).isEmpty()) return res.status(400).json({ message: "Enter the 6-digit code" });
+
+  try {
+    const result = await otp.verifyCode(pending.cid, req.body.code);
+    if (result.status === "ok") {
+      return result.challenge.purpose === "signup" ? await completeSignup(result.challenge, res) : await completeLogin(result.challenge, res);
+    }
+    if (result.challenge) await audit(result.challenge.email, result.status === "exhausted" ? "otp_exhausted" : "otp_failed", null);
+    if (result.status === "exhausted" && result.challenge.purpose === "login") await recordOtpExhausted(result.challenge);
+    return otp.sendVerifyFailure(res, result);
+  } catch (err) {
+    console.error("[verify otp]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/auth/resend-otp
+router.post("/resend-otp", otpResendLimiter, async (req, res) => {
+  if (!isDBReady(res)) return;
+  const startedAt = Date.now();
+  const pending = otp.verifyPendingToken(req.body.pendingToken, ["signup", "login"]);
+  if (!pending) return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  try {
+    const result = await otp.resendChallenge(pending.cid);
+    await otp.waitUntilPaced(startedAt);
+    return otp.sendResendResult(res, result);
+  } catch (err) {
+    console.error("[resend otp]", err.code, err.message);
+    await otp.waitUntilPaced(startedAt);
+    return res.status(502).json({ message: "We couldn't send your verification code. Please try again." });
+  }
+});
+
+// POST /api/auth/forgot-password — same response whether or not the email exists
+router.post("/forgot-password", forgotIpLimiter, forgotEmailLimiter, [body("email").trim().isEmail()], async (req, res) => {
+  if (!isDBReady(res)) return;
+  const startedAt = Date.now();
+  try {
+    if (validationResult(req).isEmpty()) {
+      const normalized = String(req.body.email).toLowerCase().trim();
+      await audit(normalized, "password_reset_requested", null);
+      const user = await User.findOne({ email: normalized });
+      if (user) {
+        const token = crypto.randomBytes(32).toString("hex");
+        await PasswordReset.deleteMany({ userId: user._id });
+        await PasswordReset.create({ userId: user._id, tokenHash: hashResetToken(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) });
+        // The token stays in the URL fragment, which is never sent to servers or in Referer headers
+        await sendMail({
+          to: user.email,
+          subject: "Reset your OpSec password",
+          text: `Use this link to reset your OpSec password. It expires in 20 minutes and can only be used once:\n\n${buildUrl(`/ResetPasswordPage.html#token=${token}`)}\n\nIf you didn't request this, you can ignore this email.`,
+        });
+      }
+    }
+  } catch (err) {
+    console.error("[forgot password]", err.code, err.message);
+  }
+  await otp.waitUntilPaced(startedAt);
+  return res.json({ message: "If that email has an account, a reset link is on its way." });
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", resetIpLimiter, [passwordRules()], async (req, res) => {
+  if (!isDBReady(res)) return;
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+
+  const { token, password, confirmPassword } = req.body;
+  if (typeof token !== "string" || !token) return res.status(400).json({ message: "This reset link is invalid or has expired." });
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
+  }
+  try {
+    const now = new Date();
+    const reset = await PasswordReset.findOneAndUpdate(
+      { tokenHash: hashResetToken(token), usedAt: null, expiresAt: { $gt: now } },
+      { $set: { usedAt: now } },
+    );
+    const user = reset && (await User.findById(reset.userId));
+    if (!user) return res.status(400).json({ message: "This reset link is invalid or has expired." });
+
+    user.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    user.failedLoginAttempts = 0;
+    user.lockUntil = null;
+    user.isLocked = false;
+    user.emailVerified = true;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    await Promise.all([PasswordReset.deleteMany({ userId: user._id }), OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id })]);
+    await audit(user.email, "password_reset_completed", user.email);
+    return res.json({ message: "Password updated. You can now log in." });
+  } catch (err) {
+    console.error("[reset password]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
 
 // GET /api/auth/me — protected
 router.get("/me", auth, async (req, res) => {

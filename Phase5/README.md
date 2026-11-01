@@ -60,6 +60,25 @@ Polished UI in `Phase5/` is preserved. Backend is self-contained in this folder 
 - **Production:** if `SMTP_USER`, `SMTP_PASS` or `MAIL_FROM` is missing, a warning is logged at startup and `sendMail` fails. Login still works. Vercel Production and Preview deployments both count as production.
 - **Test endpoint:** `POST /api/admin/test-email` with an admin Bearer token sends a test email to that admin's own address. Limited to 3 per 15 minutes per admin. Returns `200 {"sent":true}` or `502 {"error":"Email could not be sent"}`, and writes a `test_email_sent` / `test_email_failed` audit entry.
 
+## Email verification and password reset
+Signup, every user login and every admin login need a 6-digit code sent by email. Passwords alone no longer return a JWT.
+
+**OTP flow:** the first request returns `{ otpRequired, pendingToken, maskedEmail, message }`. `OtpPage.html` then posts the code and token to `verify-otp`, which returns the normal JWT.
+
+| Endpoint | Body | Purpose |
+| --- | --- | --- |
+| `POST /api/auth/verify-otp`, `POST /api/admin/verify-otp` | `{pendingToken, code}` | Check the code, return the JWT |
+| `POST /api/auth/resend-otp`, `POST /api/admin/resend-otp` | `{pendingToken}` | Send a new code |
+| `POST /api/auth/forgot-password` | `{email}` | Email a reset link. Same response whether or not the email exists |
+| `POST /api/auth/reset-password` | `{token, password, confirmPassword}` | Set the new password |
+
+- **Codes:** stored as hashes, expire after 10 minutes, 5 attempts, 3 sends, 60-second resend cooldown. Pending tokens last 15 minutes and cannot be used as JWTs.
+- **Lockout:** using all 5 attempts counts as one failed login, and failed logins only clear after a correct code.
+- **Signup:** no account exists until the code is verified. A registered address gets a "someone tried to sign up" notice instead of a code, with an identical response.
+- **Reset links:** built from `APP_URL`, stored as hashes, single use, expire after 20 minutes. A reset clears the lock and logs the user out everywhere.
+- **Existing users:** read as `emailVerified: false` until their next verified login or password reset.
+- **Email is required to log in:** if Gmail fails, logins return `502` instead of skipping the code. In dev, codes print to the server console.
+
 ## Notes
 - If `MONGODB_URI` is placeholder, server still runs but `/api/auth/*` returns `503 Database not connected...` — set real URI and restart.
 - `JWT_SECRET` already set to random hex for you.

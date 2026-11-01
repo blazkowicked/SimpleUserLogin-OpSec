@@ -9,6 +9,7 @@ const AuditLog = require("../models/AuditLog");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const { sendMail } = require("../utils/mailer");
+const otp = require("../utils/otp");
 const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
@@ -38,6 +39,22 @@ const adminLoginIpLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
+const adminOtpVerifyLimiter = createRateLimiter({
+  scope: "admin_otp_verify",
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const adminOtpResendLimiter = createRateLimiter({
+  scope: "admin_otp_resend",
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
 // Runs after adminAuth, so req.adminDoc is always set
 const testEmailLimiter = createRateLimiter({
   scope: "admin_test_email",
@@ -55,6 +72,11 @@ function isDBReady(res) {
     return false;
   }
   return true;
+}
+
+// Awaited, unlike the older fire-and-forget writes: Vercel can kill work left running after the response
+function audit(email, action, actor) {
+  return AuditLog.create({ email, action, actor }).catch((err) => console.error(`[audit ${action}]`, err));
 }
 
 function signToken(payload) {
@@ -110,15 +132,15 @@ router.post(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      if (admin.failedLoginAttempts !== 0 || admin.lockUntil) {
-        admin.failedLoginAttempts = 0;
-        admin.lockUntil = null;
-        await admin.save();
+      // Lock counters are cleared in /verify-otp, so a stolen password alone cannot reset them
+      try {
+        const challenge = await otp.startLoginChallenge({ purpose: "admin_login", email: admin.email, subjectId: admin._id });
+        await audit(admin.email, "admin_otp_sent", null);
+        return res.json(otp.pendingResponse(challenge));
+      } catch (err) {
+        console.error("[admin login otp]", err.code, err.message);
+        return res.status(502).json({ message: "We couldn't send your verification code. Please try again." });
       }
-
-      AuditLog.create({ email: normalized, action: "admin_login_success", actor: normalized }).catch((err) => console.error("[audit admin_login_success]", err));
-      const token = signToken({ id: admin._id, email: admin.email, role: "admin", tokenVersion: admin.tokenVersion || 0 });
-      return res.json({ token, admin: { id: admin._id, email: admin.email } });
     } catch (err) {
       console.error("[admin login]", err);
       try {
@@ -128,6 +150,61 @@ router.post(
     }
   },
 );
+
+// POST /api/admin/verify-otp
+router.post("/verify-otp", adminOtpVerifyLimiter, [body("code").isString().matches(/^\d{6}$/)], async (req, res) => {
+  if (!isDBReady(res)) return;
+  const pending = otp.verifyPendingToken(req.body.pendingToken, ["admin_login"]);
+  if (!pending) return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  if (!validationResult(req).isEmpty()) return res.status(400).json({ message: "Enter the 6-digit code" });
+
+  try {
+    const result = await otp.verifyCode(pending.cid, req.body.code);
+    if (result.status === "ok") {
+      const admin = await Admin.findById(result.challenge.subjectId);
+      if (!admin || (admin.lockUntil && admin.lockUntil > new Date())) {
+        return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+      }
+      admin.failedLoginAttempts = 0;
+      admin.lockUntil = null;
+      await admin.save();
+      await audit(admin.email, "admin_login_success", admin.email);
+      const token = signToken({ id: admin._id, email: admin.email, role: "admin", tokenVersion: admin.tokenVersion || 0 });
+      return res.json({ token, admin: { id: admin._id, email: admin.email } });
+    }
+
+    if (result.challenge) await audit(result.challenge.email, result.status === "exhausted" ? "admin_otp_exhausted" : "admin_otp_failed", null);
+    if (result.status === "exhausted") {
+      // Five wrong codes count as one failed login, so repeated logins cannot keep guessing
+      const admin = await Admin.findById(result.challenge.subjectId);
+      if (admin) {
+        admin.failedLoginAttempts = (admin.failedLoginAttempts || 0) + 1;
+        if (admin.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
+          admin.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+          await audit(admin.email, "admin_account_locked", null);
+        }
+        await admin.save();
+      }
+    }
+    return otp.sendVerifyFailure(res, result);
+  } catch (err) {
+    console.error("[admin verify otp]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/admin/resend-otp
+router.post("/resend-otp", adminOtpResendLimiter, async (req, res) => {
+  if (!isDBReady(res)) return;
+  const pending = otp.verifyPendingToken(req.body.pendingToken, ["admin_login"]);
+  if (!pending) return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
+  try {
+    return otp.sendResendResult(res, await otp.resendChallenge(pending.cid));
+  } catch (err) {
+    console.error("[admin resend otp]", err.code, err.message);
+    return res.status(502).json({ message: "We couldn't send your verification code. Please try again." });
+  }
+});
 
 // POST /api/admin/test-email — protected admin, sends only to the logged-in admin.
 // Send and audit write are awaited: Vercel can kill work left running after the response.

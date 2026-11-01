@@ -9,8 +9,13 @@ document.addEventListener("DOMContentLoaded", () => {
   const signupError = document.getElementById("signupError");
   const landingError = document.getElementById("landingError");
 
+  const otpForm = document.getElementById("otpForm");
+  const forgotForm = document.getElementById("forgotForm");
+  const resetForm = document.getElementById("resetForm");
+
   const TOKEN_KEY = "token";
   const USER_KEY = "currentUser";
+  const OTP_KEY = "otpPending";
 
   function getToken() {
     return localStorage.getItem(TOKEN_KEY);
@@ -55,6 +60,11 @@ document.addEventListener("DOMContentLoaded", () => {
     return data;
   }
 
+  function startOtp(data, flow) {
+    sessionStorage.setItem(OTP_KEY, JSON.stringify({ pendingToken: data.pendingToken, maskedEmail: data.maskedEmail, flow }));
+    window.location.href = "OtpPage.html";
+  }
+
   const eyeSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3.2"/></svg>`;
   const eyeOffSvg = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.93 10.93 0 0 1 12 19c-7 0-11-7-11-7a20.77 20.77 0 0 1 5.06-5.94"/><path d="M9.59 9.59A3.2 3.2 0 0 0 12 15.2a3.2 3.2 0 0 0 3.2-3.2 3.18 3.18 0 0 0-.59-1.81"/><path d="M1 1l22 22"/><path d="M10.58 10.58A3.2 3.2 0 0 0 14.42 14.42"/><path d="M14.12 14.12A3.2 3.2 0 0 1 9.88 9.88"/></svg>`;
 
@@ -94,8 +104,7 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
-        setSession(data.token, data.user?.email || email);
-        window.location.href = "LandingPage.html";
+        startOtp(data, "user");
       } catch (err) {
         showError(loginError, err.message);
         showHint(loginHint, "");
@@ -136,10 +145,161 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "POST",
           body: JSON.stringify({ email, password, confirmPassword }),
         });
-        setSession(data.token, data.user?.email || email);
-        window.location.href = "LandingPage.html";
+        startOtp(data, "signup");
       } catch (err) {
         showError(signupError, err.message);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  }
+
+  if (otpForm) {
+    const pending = JSON.parse(sessionStorage.getItem(OTP_KEY) || "null");
+    const startPages = { admin: "AdminLoginPage.html", signup: "SignupPage.html", user: "LoginPage.html" };
+    if (!pending) {
+      window.location.href = "LoginPage.html";
+    } else {
+      const otpError = document.getElementById("otpError");
+      const otpHint = document.getElementById("otpHint");
+      const resendLink = document.getElementById("otpResend");
+      const apiBase = pending.flow === "admin" ? "/api/admin" : "/api/auth";
+      let cooldownUntil = 0;
+
+      document.getElementById("otpSubtitle").textContent = `Enter the 6-digit code we sent to ${pending.maskedEmail}`;
+
+      function restart(message) {
+        sessionStorage.removeItem(OTP_KEY);
+        showError(otpError, message);
+        setTimeout(() => (window.location.href = startPages[pending.flow] || "LoginPage.html"), 1800);
+      }
+      function startCooldown(seconds) {
+        cooldownUntil = Date.now() + seconds * 1000;
+        const tick = () => {
+          const left = Math.ceil((cooldownUntil - Date.now()) / 1000);
+          resendLink.textContent = left > 0 ? `Resend code (${left}s)` : "Resend code";
+          if (left > 0) setTimeout(tick, 1000);
+        };
+        tick();
+      }
+      startCooldown(60);
+
+      otpForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        showError(otpError, "");
+        showHint(otpHint, "");
+        const code = document.getElementById("otpCode").value.trim();
+        if (!/^\d{6}$/.test(code)) {
+          showError(otpError, "Enter the 6-digit code");
+          return;
+        }
+        const btn = otpForm.querySelector("button[type=submit]");
+        setLoading(btn, true);
+        try {
+          const data = await api(`${apiBase}/verify-otp`, {
+            method: "POST",
+            body: JSON.stringify({ pendingToken: pending.pendingToken, code }),
+          });
+          sessionStorage.removeItem(OTP_KEY);
+          if (pending.flow === "admin") {
+            localStorage.setItem("adminToken", data.token);
+            localStorage.setItem("adminUser", data.admin.email);
+            window.location.href = "AdminDashboard.html";
+          } else {
+            setSession(data.token, data.user.email);
+            window.location.href = "LandingPage.html";
+          }
+        } catch (err) {
+          if (err.data?.restart) restart(err.message);
+          else showError(otpError, err.message);
+        } finally {
+          setLoading(btn, false);
+        }
+      });
+
+      resendLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        if (Date.now() < cooldownUntil) return;
+        showError(otpError, "");
+        cooldownUntil = Date.now() + 5000;
+        try {
+          await api(`${apiBase}/resend-otp`, {
+            method: "POST",
+            body: JSON.stringify({ pendingToken: pending.pendingToken }),
+          });
+          showHint(otpHint, "We sent you a new code.");
+          startCooldown(60);
+        } catch (err) {
+          if (err.data?.restart) restart(err.message);
+          else {
+            showError(otpError, err.message);
+            startCooldown(err.data?.retryAfter || 5);
+          }
+        }
+      });
+    }
+  }
+
+  if (forgotForm) {
+    const forgotError = document.getElementById("forgotError");
+    const forgotHint = document.getElementById("forgotHint");
+    forgotForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showError(forgotError, "");
+      showHint(forgotHint, "");
+      const email = document.getElementById("forgotEmail").value.trim();
+      if (!email) {
+        showError(forgotError, "Email is required");
+        return;
+      }
+      const btn = forgotForm.querySelector("button[type=submit]");
+      setLoading(btn, true);
+      try {
+        const data = await api("/api/auth/forgot-password", {
+          method: "POST",
+          body: JSON.stringify({ email }),
+        });
+        showHint(forgotHint, data.message);
+      } catch (err) {
+        showError(forgotError, err.message);
+      } finally {
+        setLoading(btn, false);
+      }
+    });
+  }
+
+  if (resetForm) {
+    const resetError = document.getElementById("resetError");
+    const resetHint = document.getElementById("resetHint");
+    const resetToken = new URLSearchParams(window.location.hash.slice(1)).get("token");
+    history.replaceState(null, "", window.location.pathname);
+    if (!resetToken) showError(resetError, "This reset link is invalid or has expired.");
+
+    resetForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      showError(resetError, "");
+      const password = document.getElementById("resetPassword").value;
+      const confirmPassword = document.getElementById("resetConfirmPassword").value;
+      if (password !== confirmPassword) {
+        showError(resetError, "Passwords do not match");
+        return;
+      }
+      if (password.length < 8) {
+        showError(resetError, "Password must be at least 8 characters");
+        return;
+      }
+      const btn = resetForm.querySelector("button[type=submit]");
+      setLoading(btn, true);
+      try {
+        const data = await api("/api/auth/reset-password", {
+          method: "POST",
+          body: JSON.stringify({ token: resetToken, password, confirmPassword }),
+        });
+        clearSession();
+        showHint(resetHint, data.message);
+        setTimeout(() => (window.location.href = "LoginPage.html"), 1500);
+      } catch (err) {
+        showError(resetError, err.message);
       } finally {
         setLoading(btn, false);
       }
