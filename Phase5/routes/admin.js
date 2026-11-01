@@ -17,8 +17,8 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_RO
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 
-const adminLoginLimiter = createRateLimiter({
-  scope: "admin_login",
+const adminLoginIeLimiter = createRateLimiter({
+  scope: "admin_login_ie",
   windowMs: 15 * 60 * 1000,
   max: 50,
   keyFn: (req) => {
@@ -26,6 +26,14 @@ const adminLoginLimiter = createRateLimiter({
     const email = (req.body?.email || "").toLowerCase().trim();
     return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
   },
+  message: "Too many requests, please try again later.",
+});
+
+const adminLoginIpLimiter = createRateLimiter({
+  scope: "admin_login_ip",
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
   message: "Too many requests, please try again later.",
 });
 
@@ -49,7 +57,8 @@ function signToken(payload) {
 // POST /api/admin/login
 router.post(
   "/login",
-  adminLoginLimiter,
+  adminLoginIeLimiter,
+  adminLoginIpLimiter,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;
@@ -215,7 +224,7 @@ router.delete("/users/:userId", adminAuth, async (req, res) => {
     await User.deleteOne({ _id: user._id });
 
     const actor = req.admin?.email || req.user?.email || null;
-    AuditLog.create({ email, action: "account_deleted", actor }).catch((err) => console.error("[audit account_deleted]", err));
+    AuditLog.create({ email, action: "account_deleted", actor }).catch((err) => console.error("[audit account_deleted"], err));
 
     return res.json({ message: "User deleted", user: { id: userId, email } });
   } catch (err) {
@@ -225,4 +234,5 @@ router.delete("/users/:userId", adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 

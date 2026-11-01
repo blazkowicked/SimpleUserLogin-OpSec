@@ -16,8 +16,8 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_RO
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 
-const authLoginLimiter = createRateLimiter({
-  scope: "auth_login",
+const authLoginIeLimiter = createRateLimiter({
+  scope: "auth_login_ie",
   windowMs: 15 * 60 * 1000,
   max: 50,
   keyFn: (req) => {
@@ -28,15 +28,19 @@ const authLoginLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
-const authSignupLimiter = createRateLimiter({
-  scope: "auth_signup",
+const authLoginIpLimiter = createRateLimiter({
+  scope: "auth_login_ip",
   windowMs: 15 * 60 * 1000,
-  max: 50,
-  keyFn: (req) => {
-    const ip = getRealIp(req);
-    const email = (req.body?.email || "").toLowerCase().trim();
-    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
-  },
+  max: 150,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const authSignupIpLimiter = createRateLimiter({
+  scope: "auth_signup_ip",
+  windowMs: 60 * 60 * 1000,
+  max: 25,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
   message: "Too many requests, please try again later.",
 });
 
@@ -60,7 +64,7 @@ function signToken(payload) {
 // POST /api/auth/signup
 router.post(
   "/signup",
-  authSignupLimiter,
+  authSignupIpLimiter,
   [
     body("email").trim().isEmail().withMessage("Valid email required").isLength({ max: 254 }),
     body("password")
@@ -99,7 +103,8 @@ router.post(
 // POST /api/auth/login
 router.post(
   "/login",
-  authLoginLimiter,
+  authLoginIeLimiter,
+  authLoginIpLimiter,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;
@@ -176,4 +181,5 @@ router.get("/me", auth, async (req, res) => {
 });
 
 module.exports = router;
+
 
