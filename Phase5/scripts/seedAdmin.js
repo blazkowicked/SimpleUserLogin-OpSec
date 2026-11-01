@@ -3,12 +3,25 @@ const bcrypt = require("bcrypt");
 const mongoose = require("mongoose");
 const connectDB = require("../config/db");
 const Admin = require("../models/Admin");
+const { passwordProblem } = require("../utils/passwordPolicy");
 
 const SALT_ROUNDS = 10;
 
 async function seed() {
-  const email = (process.env.ADMIN_EMAIL || "admin@opsec.local").toLowerCase().trim();
-  const password = process.env.ADMIN_PASSWORD || "Admin123!";
+  // No defaults: a known default password is a free admin login, and admin login
+  // now sends a code by email, so the address has to be a real inbox.
+  const email = String(process.env.ADMIN_EMAIL || "").toLowerCase().trim();
+  const password = process.env.ADMIN_PASSWORD || "";
+
+  if (!email || !/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) {
+    console.error("[seedAdmin] Set ADMIN_EMAIL in Phase5/.env to a real inbox. Admin login sends a verification code there.");
+    process.exit(1);
+  }
+  const problem = passwordProblem(password);
+  if (problem) {
+    console.error(`[seedAdmin] ADMIN_PASSWORD in Phase5/.env is not strong enough: ${problem}.`);
+    process.exit(1);
+  }
 
   if (!process.env.MONGODB_URI) {
     console.error("[seedAdmin] MONGODB_URI missing in Phase5/.env");
