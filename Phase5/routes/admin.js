@@ -9,6 +9,7 @@ const AuditLog = require("../models/AuditLog");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const { sendMail } = require("../utils/mailer");
+const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
 
@@ -17,14 +18,23 @@ const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_RO
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
 
-const adminLoginLimiter = createRateLimiter({
-  scope: "admin_login",
+const adminLoginIeLimiter = createRateLimiter({
+  scope: "admin_login_ie",
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
   keyFn: (req) => {
+    const ip = getRealIp(req);
     const email = (req.body?.email || "").toLowerCase().trim();
-    return email || "unknown";
+    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
   },
+  message: "Too many requests, please try again later.",
+});
+
+const adminLoginIpLimiter = createRateLimiter({
+  scope: "admin_login_ip",
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
   message: "Too many requests, please try again later.",
 });
 
@@ -57,7 +67,8 @@ function signToken(payload) {
 // POST /api/admin/login
 router.post(
   "/login",
-  adminLoginLimiter,
+  adminLoginIeLimiter,
+  adminLoginIpLimiter,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;
@@ -75,7 +86,14 @@ router.post(
       }
 
       const now = new Date();
+      if (admin.lockUntil && admin.lockUntil <= now) {
+        admin.lockUntil = null;
+        admin.failedLoginAttempts = 0;
+        await admin.save();
+      }
+
       if (admin.lockUntil && admin.lockUntil > now) {
+        await bcrypt.compare(password || "", DUMMY_PASSWORD_HASH);
         AuditLog.create({ email: normalized, action: "admin_login_failure", actor: null }).catch((err) => console.error("[audit admin_login_failure]", err));
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -245,4 +263,5 @@ router.delete("/users/:userId", adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+
 

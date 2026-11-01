@@ -6,6 +6,8 @@ const mongoose = require("mongoose");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
+const createRateLimiter = require("../middleware/rateLimiter");
+const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
 
@@ -13,6 +15,34 @@ const SALT_ROUNDS = 10;
 const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_ROUNDS);
 const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
+
+const authLoginIeLimiter = createRateLimiter({
+  scope: "auth_login_ie",
+  windowMs: 15 * 60 * 1000,
+  max: 50,
+  keyFn: (req) => {
+    const ip = getRealIp(req);
+    const email = (req.body?.email || "").toLowerCase().trim();
+    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
+  },
+  message: "Too many requests, please try again later.",
+});
+
+const authLoginIpLimiter = createRateLimiter({
+  scope: "auth_login_ip",
+  windowMs: 15 * 60 * 1000,
+  max: 150,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
+const authSignupIpLimiter = createRateLimiter({
+  scope: "auth_signup_ip",
+  windowMs: 60 * 60 * 1000,
+  max: 25,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
 
 function isDBReady(res) {
   if (mongoose.connection.readyState !== 1) {
@@ -34,6 +64,7 @@ function signToken(payload) {
 // POST /api/auth/signup
 router.post(
   "/signup",
+  authSignupIpLimiter,
   [
     body("email").trim().isEmail().withMessage("Valid email required").isLength({ max: 254 }),
     body("password")
@@ -57,7 +88,7 @@ router.post(
       if (existing) return res.status(409).json({ message: "Email already registered" });
 
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const user = await User.create({ email: normalized, passwordHash, tokenVersion: 0, failedLoginAttempts: 0, lockUntil: null });
+      const user = await User.create({ email: normalized, passwordHash, tokenVersion: 0, failedLoginAttempts: 0, lockUntil: null, isLocked: false });
       AuditLog.create({ email: normalized, action: "signup", actor: normalized }).catch((err) => console.error("[audit signup]", err));
       const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
       return res.status(201).json({ token, user: { id: user._id, email: user.email } });
@@ -72,11 +103,13 @@ router.post(
 // POST /api/auth/login
 router.post(
   "/login",
+  authLoginIeLimiter,
+  authLoginIpLimiter,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ message: "Invalid credentials" });
+    if (!errors.isEmpty()) return res.status(401).json({ message: "Invalid credentials" });
 
     const { email, password } = req.body;
     const normalized = (email || "").toLowerCase().trim();
@@ -89,7 +122,15 @@ router.post(
       }
 
       const now = new Date();
+      if (user.lockUntil && user.lockUntil <= now) {
+        user.lockUntil = null;
+        user.failedLoginAttempts = 0;
+        user.isLocked = false;
+        await user.save();
+      }
+
       if (user.lockUntil && user.lockUntil > now) {
+        await bcrypt.compare(password || "", DUMMY_PASSWORD_HASH);
         AuditLog.create({ email: normalized, action: "login_failure", actor: null }).catch((err) => console.error("[audit login_failure]", err));
         return res.status(401).json({ message: "Invalid credentials" });
       }
@@ -99,6 +140,7 @@ router.post(
         user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
         if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
           user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+          user.isLocked = true;
           AuditLog.create({ email: normalized, action: "account_locked", actor: null }).catch((err) => console.error("[audit account_locked]", err));
         }
         await user.save();
@@ -139,3 +181,5 @@ router.get("/me", auth, async (req, res) => {
 });
 
 module.exports = router;
+
+
