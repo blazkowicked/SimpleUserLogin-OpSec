@@ -97,6 +97,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (loginForm) {
     const loginHint = document.getElementById("loginHint");
+    const loginEmailInput = document.getElementById("loginEmail");
+    const loginEmailCheck = window.EmailCheck ? EmailCheck.attach(loginEmailInput) : null;
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(loginError, "");
@@ -105,6 +107,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const password = document.getElementById("loginPassword").value;
       if (!email || !password) {
         showError(loginError, "Email and password are required");
+        return;
+      }
+      if (loginEmailCheck && !loginEmailCheck.check()) {
+        loginEmailInput.focus();
         return;
       }
       const btn = loginForm.querySelector("button[type=submit]");
@@ -124,37 +130,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Email format check (F4). Catches obvious typos before submitting; the server
-  // runs a stricter check, and the signup code proves the address is real.
-  function looksLikeEmail(value) {
-    return value.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value);
-  }
-
   if (signupForm) {
     const signupEmailInput = document.getElementById("signupEmail");
-    const emailFieldError = document.createElement("div");
-    emailFieldError.id = "signupEmailError";
-    emailFieldError.className = "field-error";
-    emailFieldError.setAttribute("aria-live", "polite");
-    const emailField = signupEmailInput.closest(".field");
-    if (emailField) emailField.append(emailFieldError);
-    signupEmailInput.setAttribute("aria-describedby", emailFieldError.id);
-    const emailWrap = signupEmailInput.closest(".input-wrap");
-
-    function checkSignupEmail() {
-      const value = signupEmailInput.value.trim();
-      const bad = value !== "" && !looksLikeEmail(value);
-      emailFieldError.textContent = bad ? "Enter a valid email, like name@example.com" : "";
-      if (emailWrap) emailWrap.classList.toggle("is-invalid", bad);
-      signupEmailInput.setAttribute("aria-invalid", bad ? "true" : "false");
-      return !bad;
-    }
-
-    signupEmailInput.addEventListener("blur", checkSignupEmail);
-    // Once an error is showing, clear it as soon as the address is fixed
-    signupEmailInput.addEventListener("input", () => {
-      if (emailFieldError.textContent) checkSignupEmail();
-    });
+    // Email format check (F4), shared with login and forgot password
+    const signupEmailCheck = window.EmailCheck ? EmailCheck.attach(signupEmailInput) : null;
 
     signupForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -169,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showError(signupError, "All fields are required");
         return;
       }
-      if (!checkSignupEmail()) {
+      if (signupEmailCheck && !signupEmailCheck.check()) {
         signupEmailInput.focus();
         return;
       }
@@ -230,13 +209,82 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       startCooldown(60);
 
+      // One box per digit. Takes digits only, never more than the code length,
+      // and handles typing, backspace, arrow keys, paste and phone autofill.
+      const boxesEl = document.getElementById("otpBoxes");
+      const CODE_LENGTH = Number(boxesEl.dataset.length) || 6;
+      const boxes = [];
+      for (let i = 0; i < CODE_LENGTH; i++) {
+        const box = document.createElement("input");
+        box.type = "text";
+        box.inputMode = "numeric";
+        box.className = "otp-digit";
+        box.setAttribute("pattern", "[0-9]*");
+        box.setAttribute("aria-label", `Digit ${i + 1} of ${CODE_LENGTH}`);
+        // Only the first box offers the phone's "code from Messages/Mail" autofill
+        box.autocomplete = i === 0 ? "one-time-code" : "off";
+        boxesEl.append(box);
+        boxes.push(box);
+      }
+
+      function getCode() {
+        return boxes.map((b) => b.value).join("");
+      }
+      function clearBoxes() {
+        boxes.forEach((b) => (b.value = ""));
+        boxes[0].focus();
+      }
+      // Writes digits starting at a box, spilling into the following boxes
+      function fillFrom(index, digits) {
+        let i = index;
+        for (const d of digits) {
+          if (i >= CODE_LENGTH) break;
+          boxes[i].value = d;
+          i++;
+        }
+        const next = boxes[Math.min(i, CODE_LENGTH - 1)];
+        if (getCode().length === CODE_LENGTH) otpForm.querySelector("button[type=submit]").focus();
+        else next.focus();
+      }
+
+      boxes.forEach((box, i) => {
+        box.addEventListener("input", () => {
+          const digits = box.value.replace(/\D/g, "");
+          box.value = "";
+          if (digits) fillFrom(i, digits);
+          if (otpError.textContent) showError(otpError, "");
+        });
+        box.addEventListener("keydown", (e) => {
+          if (e.key === "Backspace" && !box.value && i > 0) {
+            e.preventDefault();
+            boxes[i - 1].value = "";
+            boxes[i - 1].focus();
+          } else if (e.key === "ArrowLeft" && i > 0) {
+            e.preventDefault();
+            boxes[i - 1].focus();
+          } else if (e.key === "ArrowRight" && i < CODE_LENGTH - 1) {
+            e.preventDefault();
+            boxes[i + 1].focus();
+          }
+        });
+        box.addEventListener("paste", (e) => {
+          e.preventDefault();
+          const digits = (e.clipboardData?.getData("text") || "").replace(/\D/g, "");
+          if (digits) fillFrom(i, digits);
+        });
+        box.addEventListener("focus", () => box.select());
+      });
+      boxes[0].focus();
+
       otpForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         showError(otpError, "");
         showHint(otpHint, "");
-        const code = document.getElementById("otpCode").value.trim();
-        if (!/^\d{6}$/.test(code)) {
-          showError(otpError, "Enter the 6-digit code");
+        const code = getCode();
+        if (!new RegExp(`^\\d{${CODE_LENGTH}}$`).test(code)) {
+          showError(otpError, `Enter all ${CODE_LENGTH} digits`);
+          const firstEmpty = boxes.find((b) => !b.value);
+          if (firstEmpty) firstEmpty.focus();
           return;
         }
         const btn = otpForm.querySelector("button[type=submit]");
@@ -260,7 +308,10 @@ document.addEventListener("DOMContentLoaded", () => {
           }
         } catch (err) {
           if (err.data?.restart) restart(err.message);
-          else showError(otpError, err.message);
+          else {
+            showError(otpError, err.message);
+            clearBoxes();
+          }
         } finally {
           setLoading(btn, false);
         }
@@ -335,6 +386,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (forgotForm) {
     const forgotError = document.getElementById("forgotError");
     const forgotHint = document.getElementById("forgotHint");
+    const forgotEmailInput = document.getElementById("forgotEmail");
+    const forgotEmailCheck = window.EmailCheck ? EmailCheck.attach(forgotEmailInput) : null;
     forgotForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(forgotError, "");
@@ -342,6 +395,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const email = document.getElementById("forgotEmail").value.trim();
       if (!email) {
         showError(forgotError, "Email is required");
+        return;
+      }
+      if (forgotEmailCheck && !forgotEmailCheck.check()) {
+        forgotEmailInput.focus();
         return;
       }
       const btn = forgotForm.querySelector("button[type=submit]");

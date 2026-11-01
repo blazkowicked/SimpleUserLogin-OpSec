@@ -560,3 +560,41 @@ body.ops {
   white-space: nowrap;
   border: 0;
 }
+
+/* ---------- OTP code boxes ---------- */
+
+.field-label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+}
+
+.otp-boxes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.otp-digit {
+  width: 100%;
+  min-width: 0;
+  height: 52px;
+  padding: 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 22px;
+  color: var(--text);
+  caret-color: var(--accent);
+  background: var(--input);
+  border: 1px solid var(--input-border);
+  border-radius: 4px;
+  outline: 0;
+  transition: border-color 150ms var(--ease);
+}
+
+.otp-digit:focus {
+  border-color: rgba(242, 244, 247, 0.4);
+}

@@ -41,6 +41,9 @@ document.addEventListener("DOMContentLoaded", () => {
     // optional silent verification could be added, but just redirect
   }
 
+  const adminEmailInput = document.getElementById("adminEmail");
+  const adminEmailCheck = window.EmailCheck ? EmailCheck.attach(adminEmailInput) : null;
+
   if (form) {
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -49,6 +52,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const password = document.getElementById("adminPassword").value;
       if (!email || !password) {
         showError("Email and password are required");
+        return;
+      }
+      if (adminEmailCheck && !adminEmailCheck.check()) {
+        adminEmailInput.focus();
         return;
       }
       const btn = form.querySelector("button[type=submit]");
