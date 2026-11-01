@@ -77,6 +77,7 @@ Signup, every user login and every admin login need a 6-digit code sent by email
 - **Signup:** no account exists until the code is verified. A registered address gets a "someone tried to sign up" notice instead of a code, with an identical response.
 - **Reset links:** built from `APP_URL`, stored as hashes, single use, expire after 20 minutes. A reset clears the lock and logs the user out everywhere.
 - **Existing users:** read as `emailVerified: false` until their next verified login or password reset.
+- **Admin temporary passwords:** `PUT /api/admin/users/:userId/password` sets a temporary password, ends the user's sessions, cancels their pending logins and reset links, emails them, and audits which admin did it. The temporary password is never emailed. After the login code, `verify-otp` returns `{ passwordChangeRequired, changeToken }` instead of a JWT, and `POST /api/auth/force-change-password` with `{changeToken, password, confirmPassword}` sets the new password and returns the JWT.
 - **Email is required to log in:** if Gmail fails, logins return `502` instead of skipping the code. In dev, codes print to the server console.
 
 ## Notes

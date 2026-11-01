@@ -12,10 +12,12 @@ document.addEventListener("DOMContentLoaded", () => {
   const otpForm = document.getElementById("otpForm");
   const forgotForm = document.getElementById("forgotForm");
   const resetForm = document.getElementById("resetForm");
+  const forceChangeForm = document.getElementById("forceChangeForm");
 
   const TOKEN_KEY = "token";
   const USER_KEY = "currentUser";
   const OTP_KEY = "otpPending";
+  const CHANGE_KEY = "passwordChangeToken";
 
   function getToken() {
     return localStorage.getItem(TOKEN_KEY);
@@ -201,7 +203,10 @@ document.addEventListener("DOMContentLoaded", () => {
             body: JSON.stringify({ pendingToken: pending.pendingToken, code }),
           });
           sessionStorage.removeItem(OTP_KEY);
-          if (pending.flow === "admin") {
+          if (data.passwordChangeRequired) {
+            sessionStorage.setItem(CHANGE_KEY, data.changeToken);
+            window.location.href = "ForceChangePasswordPage.html";
+          } else if (pending.flow === "admin") {
             localStorage.setItem("adminToken", data.token);
             localStorage.setItem("adminUser", data.admin.email);
             window.location.href = "AdminDashboard.html";
@@ -235,6 +240,48 @@ document.addEventListener("DOMContentLoaded", () => {
             showError(otpError, err.message);
             startCooldown(err.data?.retryAfter || 5);
           }
+        }
+      });
+    }
+  }
+
+  if (forceChangeForm) {
+    const changeToken = sessionStorage.getItem(CHANGE_KEY);
+    if (!changeToken) {
+      window.location.href = "LoginPage.html";
+    } else {
+      const changeError = document.getElementById("changeError");
+      forceChangeForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        showError(changeError, "");
+        const password = document.getElementById("changePassword").value;
+        const confirmPassword = document.getElementById("changeConfirmPassword").value;
+        if (password !== confirmPassword) {
+          showError(changeError, "Passwords do not match");
+          return;
+        }
+        if (password.length < 8) {
+          showError(changeError, "Password must be at least 8 characters");
+          return;
+        }
+        const btn = forceChangeForm.querySelector("button[type=submit]");
+        setLoading(btn, true);
+        try {
+          const data = await api("/api/auth/force-change-password", {
+            method: "POST",
+            body: JSON.stringify({ changeToken, password, confirmPassword }),
+          });
+          sessionStorage.removeItem(CHANGE_KEY);
+          setSession(data.token, data.user.email);
+          window.location.href = "LandingPage.html";
+        } catch (err) {
+          showError(changeError, err.message);
+          if (err.data?.restart) {
+            sessionStorage.removeItem(CHANGE_KEY);
+            setTimeout(() => (window.location.href = "LoginPage.html"), 1800);
+          }
+        } finally {
+          setLoading(btn, false);
         }
       });
     }

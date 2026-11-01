@@ -47,6 +47,23 @@ function verifyPendingToken(token, allowedPurposes) {
   }
 }
 
+// Only accepted by the forced password change, and dies once tokenVersion moves
+function signPasswordChangeToken(user) {
+  return jwt.sign({ uid: String(user._id), tv: user.tokenVersion || 0 }, deriveKey("password-change"), {
+    algorithm: "HS256",
+    expiresIn: Math.floor(CHALLENGE_TTL_MS / 1000),
+  });
+}
+
+function verifyPasswordChangeToken(token) {
+  if (typeof token !== "string") return null;
+  try {
+    return jwt.verify(token, deriveKey("password-change"), { algorithms: ["HS256"] });
+  } catch (err) {
+    return null;
+  }
+}
+
 function pendingResponse(challenge) {
   return {
     otpRequired: true,
@@ -177,6 +194,8 @@ module.exports = {
   resendChallenge,
   verifyCode,
   verifyPendingToken,
+  signPasswordChangeToken,
+  verifyPasswordChangeToken,
   pendingResponse,
   sendVerifyFailure,
   sendResendResult,

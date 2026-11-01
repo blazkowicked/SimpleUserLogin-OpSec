@@ -91,6 +91,14 @@ const resetIpLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
+const forceChangeLimiter = createRateLimiter({
+  scope: "auth_force_change",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyFn: (req) => `ip:${getRealIp(req)}`,
+  message: "Too many requests, please try again later.",
+});
+
 const passwordRules = () =>
   body("password")
     .isLength({ min: 8, max: 128 })
@@ -261,6 +269,9 @@ async function completeLogin(challenge, res) {
   user.isLocked = false;
   user.emailVerified = true;
   await user.save();
+  if (user.mustChangePassword) {
+    return res.json({ passwordChangeRequired: true, changeToken: otp.signPasswordChangeToken(user) });
+  }
   await audit(user.email, "login_success", user.email);
   const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
   return res.json({ token, user: { id: user._id, email: user.email } });
@@ -370,6 +381,7 @@ router.post("/reset-password", resetIpLimiter, [passwordRules()], async (req, re
     user.lockUntil = null;
     user.isLocked = false;
     user.emailVerified = true;
+    user.mustChangePassword = false;
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
@@ -378,6 +390,43 @@ router.post("/reset-password", resetIpLimiter, [passwordRules()], async (req, re
     return res.json({ message: "Password updated. You can now log in." });
   } catch (err) {
     console.error("[reset password]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/auth/force-change-password — after a temporary password and a verified code
+router.post("/force-change-password", forceChangeLimiter, [passwordRules()], async (req, res) => {
+  if (!isDBReady(res)) return;
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+
+  const expired = { message: "This session has expired. Please log in again.", restart: true };
+  const pending = otp.verifyPasswordChangeToken(req.body.changeToken);
+  if (!pending) return res.status(401).json(expired);
+
+  const { password, confirmPassword } = req.body;
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    return res.status(400).json({ message: "Passwords do not match" });
+  }
+  try {
+    const user = await User.findById(pending.uid);
+    if (!user || !user.mustChangePassword || (user.tokenVersion || 0) !== pending.tv) return res.status(401).json(expired);
+    if (user.lockUntil && user.lockUntil > new Date()) return res.status(401).json(expired);
+    if (await bcrypt.compare(password, user.passwordHash)) {
+      return res.status(400).json({ message: "Choose a password different from your temporary one" });
+    }
+
+    user.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    user.mustChangePassword = false;
+    user.tokenVersion = (user.tokenVersion || 0) + 1;
+    await user.save();
+
+    await audit(user.email, "forced_password_change_completed", user.email);
+    await audit(user.email, "login_success", user.email);
+    const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion });
+    return res.json({ token, user: { id: user._id, email: user.email } });
+  } catch (err) {
+    console.error("[force change]", err);
     return res.status(500).json({ message: "Server error" });
   }
 });

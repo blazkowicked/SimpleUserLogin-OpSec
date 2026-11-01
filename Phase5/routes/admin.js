@@ -6,9 +6,11 @@ const mongoose = require("mongoose");
 const Admin = require("../models/Admin");
 const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
+const OtpChallenge = require("../models/OtpChallenge");
+const PasswordReset = require("../models/PasswordReset");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
-const { sendMail } = require("../utils/mailer");
+const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
 const getRealIp = require("../utils/getRealIp");
 
@@ -229,13 +231,14 @@ router.post("/test-email", adminAuth, testEmailLimiter, async (req, res) => {
 router.get("/users", adminAuth, async (req, res) => {
   if (!isDBReady(res)) return;
   try {
-    const users = await User.find({}).select("email isLocked failedLoginAttempts lockUntil createdAt").sort({ createdAt: -1 });
+    const users = await User.find({}).select("email isLocked failedLoginAttempts lockUntil mustChangePassword createdAt").sort({ createdAt: -1 });
     const result = users.map((u) => ({
       id: u._id,
       _id: u._id,
       email: u.email,
       isLocked: !!(u.lockUntil && u.lockUntil > new Date()),
       failedLoginAttempts: u.failedLoginAttempts ?? 0,
+      mustChangePassword: !!u.mustChangePassword,
       createdAt: u.createdAt,
     }));
     return res.json({ users: result });
@@ -271,7 +274,7 @@ router.post("/unlock/:userId", adminAuth, async (req, res) => {
   }
 });
 
-// PUT /api/admin/users/:userId/password — change user password (admin)
+// PUT /api/admin/users/:userId/password — set a temporary password the user must replace at next login
 router.put(
   "/users/:userId/password",
   adminAuth,
@@ -301,13 +304,30 @@ router.put(
       user.isLocked = false;
       user.failedLoginAttempts = 0;
       user.lockUntil = null;
+      user.mustChangePassword = true;
       user.tokenVersion = (user.tokenVersion || 0) + 1;
       await user.save();
 
-      const actor = req.admin?.email || req.user?.email || null;
-      AuditLog.create({ email: user.email, action: "admin_password_changed", actor }).catch((err) => console.error("[audit admin_password_changed]", err));
+      // Anything started before this change must not survive it
+      await Promise.all([OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id }), PasswordReset.deleteMany({ userId: user._id })]);
 
-      return res.json({ message: "Password updated", user: { id: user._id, email: user.email } });
+      const actor = req.adminDoc.email;
+      await audit(user.email, "admin_password_changed", actor);
+
+      // The temporary password is never emailed. The admin passes it on separately.
+      let emailSent = true;
+      try {
+        await sendMail({
+          to: user.email,
+          subject: "An admin changed your OpSec password",
+          text: `An administrator changed the password on your OpSec account, and you have been logged out on all devices.\n\nYour administrator will give you a temporary password. You will be asked to choose a new one when you log in here: ${buildUrl("/LoginPage.html")}\n\nIf you weren't expecting this, contact your administrator.`,
+        });
+      } catch (err) {
+        emailSent = false;
+        await audit(user.email, "admin_password_change_email_failed", actor);
+      }
+
+      return res.json({ message: "Temporary password set", emailSent, user: { id: user._id, email: user.email } });
     } catch (err) {
       console.error("[admin change pw]", err);
       return res.status(500).json({ message: "Server error" });

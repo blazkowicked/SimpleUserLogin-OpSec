@@ -9,7 +9,7 @@
   <body>
     <div class="container wide">
       <h1>Admin Dashboard</h1>
-      <p class="subtitle">User management — unlock, reset passwords, delete users</p>
+      <p class="subtitle">User management — unlock, set temporary passwords, delete users</p>
 
       <div class="admin-topbar">
         <div id="adminInfo" class="subtitle"></div>
@@ -63,9 +63,10 @@
     <!-- Change password modal -->
     <div id="pwModal" class="modal-overlay" style="display:none">
       <div class="modal">
-        <h3>Change password</h3>
+        <h3>Set temporary password</h3>
         <p class="subtitle" style="margin-bottom:12px" id="pwModalEmail"></p>
-        <label for="newPw">New password</label>
+        <p class="subtitle" style="margin-bottom:12px">The user is logged out, emailed that an admin made this change, and must choose a new password at next login. Give them this password yourself. It is not emailed.</p>
+        <label for="newPw">Temporary password</label>
         <div class="password-wrap">
           <input id="newPw" type="password" autocomplete="new-password" placeholder="At least 8 chars, letters" />
           <button type="button" class="eye-btn" data-eye="newPw" aria-label="Show password"></button>
@@ -277,6 +278,7 @@
             const locked = !!u.isLocked;
             const fails = u.failedLoginAttempts ?? 0;
             const remaining = Math.max(0, 5 - fails);
+            const pendingChange = !!u.mustChangePassword;
             const barPct = (fails / 5) * 100;
             let barClass = "";
             if (fails >= 5) barClass = "danger";
@@ -288,12 +290,12 @@
             const actions = `
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 ${locked ? `<button class="btn-small" data-unlock="${u.id || u._id}">Unlock</button>` : ""}
-                <button class="btn-small btn-secondary" data-pw="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Change Pw</button>
+                <button class="btn-small btn-secondary" data-pw="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Temp Pw</button>
                 <button class="btn-small btn-danger" data-del="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Delete</button>
               </div>`;
             tr.innerHTML = `
               <td data-label="Email">${escapeHtml(u.email)}</td>
-              <td data-label="Status">${locked ? '<span class="badge badge-locked">Locked</span>' : '<span class="badge badge-active">Active</span>'}</td>
+              <td data-label="Status">${locked ? '<span class="badge badge-locked">Locked</span>' : pendingChange ? '<span class="badge badge-locked">Must change password</span>' : '<span class="badge badge-active">Active</span>'}</td>
               <td data-label="Attempts">${attemptsHtml}</td>
               <td data-label="Created">${formatDate(u.createdAt)}</td>
               <td data-label="Actions">${actions}</td>
@@ -389,16 +391,17 @@
           pwSubmit.disabled = true;
           pwSubmit.textContent = "Saving...";
           try {
-            await api(`/api/admin/users/${currentPwUserId}/password`, {
+            const data = await api(`/api/admin/users/${currentPwUserId}/password`, {
               method: "PUT",
               body: JSON.stringify({ newPassword }),
             });
-            pwSuccess.textContent = "Password updated and account unlocked";
-            showSuccess(`Password updated for ${currentPwEmail}`);
+            const note = data.emailSent ? "" : " The notification email could not be sent, so tell the user directly.";
+            pwSuccess.textContent = `Temporary password set.${note}`;
+            showSuccess(`Temporary password set for ${currentPwEmail}.${note}`);
             setTimeout(() => {
               closePwModal();
               loadUsers();
-            }, 800);
+            }, data.emailSent ? 800 : 4000);
           } catch (err) {
             pwError.textContent = err.message;
           } finally {
