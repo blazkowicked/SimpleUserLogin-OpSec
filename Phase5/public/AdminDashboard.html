@@ -3,37 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OPSEC Admin Dashboard</title>
-    <link rel="stylesheet" href="Style.css" />
+    <title>Admin dashboard · OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
   </head>
-  <body>
-    <div class="container wide">
-      <h1>Admin Dashboard</h1>
-      <p class="subtitle">User management — unlock, set temporary passwords, delete users</p>
+  <body class="ops dash">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
 
-      <div class="admin-topbar">
-        <div id="adminInfo" class="subtitle"></div>
-        <button id="adminLogoutBtn" type="button" class="logout-btn btn-secondary">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          Logout
-        </button>
+    <header class="brand">
+      <span class="wordmark">OpSec</span>
+      <span class="brand-tag">Admin</span>
+    </header>
+
+    <main class="card dash-card">
+      <div class="dash-header">
+        <div class="card-header">
+          <h1>Admin dashboard</h1>
+          <p class="subtitle">User management — unlock, set temporary passwords, delete users</p>
+        </div>
+        <div class="session">
+          <span id="adminInfo" class="session-info"></span>
+          <button id="adminLogoutBtn" type="button" class="btn-small btn-outline btn-icon">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Log out
+          </button>
+        </div>
       </div>
 
       <div id="adminError" class="error" aria-live="polite"></div>
       <div id="adminSuccess" class="success" aria-live="polite"></div>
 
       <div class="toolbar">
-        <input id="userSearch" type="search" placeholder="Search email..." autocomplete="off" />
-        <select id="statusFilter">
-          <option value="all">All status</option>
-          <option value="active">Active only</option>
-          <option value="locked">Locked only</option>
-        </select>
+        <div class="input-wrap search-wrap">
+          <span class="prompt" aria-hidden="true">›</span>
+          <label for="userSearch" class="sr-only">Search email</label>
+          <input id="userSearch" type="search" placeholder="Search email" autocomplete="off" />
+        </div>
+        <div class="select-wrap">
+          <label for="statusFilter" class="sr-only">Status</label>
+          <select id="statusFilter">
+            <option value="all">All status</option>
+            <option value="active">Active only</option>
+            <option value="locked">Locked only</option>
+          </select>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+        </div>
         <span id="userCount" class="count"></span>
+        <button id="refreshBtn" type="button" class="btn-outline btn-icon btn-toolbar">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          <span class="btn-label">Refresh</span>
+        </button>
       </div>
 
       <div class="table-wrap">
-        <table class="users-table" id="usersTable" style="display:none">
+        <table class="users-table" id="usersTable" hidden>
           <thead>
             <tr>
               <th data-sort="email">Email <span class="sort-arrow"></span></th>
@@ -45,46 +72,58 @@
           </thead>
           <tbody id="usersBody"></tbody>
         </table>
-        <p id="emptyState" class="subtitle" style="display:none; margin-top:12px">No users found.</p>
+        <p id="emptyState" class="subtitle empty-state" hidden>No users found.</p>
       </div>
 
-      <div id="pager" class="pager" style="display:none">
-        <button id="prevPage" type="button" class="btn-secondary">Prev</button>
+      <div id="pager" class="pager" hidden>
+        <button id="prevPage" type="button" class="btn-small btn-outline">Prev</button>
         <span id="pageInfo"></span>
-        <button id="nextPage" type="button" class="btn-secondary">Next</button>
+        <button id="nextPage" type="button" class="btn-small btn-outline">Next</button>
       </div>
 
-      <div class="admin-actions">
-        <button id="refreshBtn" type="button">Refresh</button>
-      </div>
-      <p class="secondary-link"><a href="LoginPage.html">Back to user login</a></p>
-    </div>
+      <p class="switch">
+        <a href="LoginPage.html">Back to user login</a>
+      </p>
+    </main>
 
-    <!-- Change password modal -->
-    <div id="pwModal" class="modal-overlay" style="display:none">
-      <div class="modal">
-        <h3>Set temporary password</h3>
-        <p class="subtitle" style="margin-bottom:12px" id="pwModalEmail"></p>
-        <p class="subtitle" style="margin-bottom:12px">The user is logged out, emailed that an admin made this change, and must choose a new password at next login. Give them this password yourself. It is not emailed.</p>
-        <label for="newPw">Temporary password</label>
-        <div class="password-wrap">
-          <input id="newPw" type="password" autocomplete="new-password" placeholder="Temporary password" />
-          <button type="button" class="eye-btn" data-eye="newPw" aria-label="Show password"></button>
+    <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
+
+    <!-- Set temporary password -->
+    <div id="pwModal" class="modal-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="pwModalTitle">
+        <div class="modal-header">
+          <h2 id="pwModalTitle">Set temporary password</h2>
+          <p class="modal-email" id="pwModalEmail"></p>
+          <p class="subtitle">The user is logged out, emailed that an admin made this change, and must choose a new password at next login. Give them this password yourself. It is not emailed.</p>
         </div>
-        <label for="confirmPw">Confirm password</label>
-        <div class="password-wrap">
-          <input id="confirmPw" type="password" autocomplete="new-password" placeholder="Confirm password" />
-          <button type="button" class="eye-btn" data-eye="confirmPw" aria-label="Show password"></button>
+        <div class="modal-fields">
+          <div class="field">
+            <label for="newPw">Temporary password</label>
+            <div class="input-wrap password-wrap">
+              <span class="prompt" aria-hidden="true">›</span>
+              <input id="newPw" type="password" autocomplete="new-password" placeholder="Temporary password" />
+              <button type="button" class="eye-btn" data-eye="newPw" aria-label="Show password"></button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="confirmPw">Confirm password</label>
+            <div class="input-wrap password-wrap">
+              <span class="prompt" aria-hidden="true">›</span>
+              <input id="confirmPw" type="password" autocomplete="new-password" placeholder="Confirm password" />
+              <button type="button" class="eye-btn" data-eye="confirmPw" aria-label="Show password"></button>
+            </div>
+          </div>
+          <div id="pwError" class="error" aria-live="polite"></div>
+          <div id="pwSuccess" class="success" aria-live="polite"></div>
         </div>
-        <div id="pwError" class="error"></div>
-        <div id="pwSuccess" class="success"></div>
         <div class="modal-actions">
           <button type="button" class="btn-secondary" id="pwCancel">Cancel</button>
-          <button type="button" id="pwSubmit">Save</button>
+          <button type="button" class="btn-primary" id="pwSubmit">Save</button>
         </div>
       </div>
     </div>
 
+    <script src="background.js"></script>
     <script src="password-rules.js"></script>
     <script src="admin-dashboard.js"></script>
   </body>

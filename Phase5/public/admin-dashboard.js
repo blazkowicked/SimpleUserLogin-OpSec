@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const tbody = document.getElementById("usersBody");
   const emptyState = document.getElementById("emptyState");
   const refreshBtn = document.getElementById("refreshBtn");
+  const refreshLabel = refreshBtn ? refreshBtn.querySelector(".btn-label") || refreshBtn : null;
   const logoutBtn = document.getElementById("adminLogoutBtn");
   const searchInput = document.getElementById("userSearch");
   const statusFilter = document.getElementById("statusFilter");
@@ -76,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function formatDate(iso) {
     if (!iso) return "—";
     try {
-      return new Date(iso).toLocaleString();
+      return new Date(iso).toLocaleString([], { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" });
     } catch {
       return iso;
     }
@@ -102,7 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (infoEl && email) infoEl.textContent = `Logged in as ${email}`;
     if (refreshBtn) {
       refreshBtn.disabled = true;
-      refreshBtn.textContent = "Loading...";
+      refreshLabel.textContent = "Loading...";
     }
     try {
       const data = await api("/api/admin/users", { method: "GET" });
@@ -120,7 +121,7 @@ document.addEventListener("DOMContentLoaded", () => {
     } finally {
       if (refreshBtn) {
         refreshBtn.disabled = false;
-        refreshBtn.textContent = "Refresh";
+        refreshLabel.textContent = "Refresh";
       }
     }
   }
@@ -155,15 +156,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
     if (currentPage >= totalPages) currentPage = totalPages - 1;
     if (currentPage < 0) currentPage = 0;
-    if (userCount) userCount.textContent = `${filteredUsers.length} user(s)${q || status !== "all" ? ` (filtered from ${allUsers.length})` : ""}`;
+    if (userCount) {
+      const n = filteredUsers.length;
+      userCount.textContent = `${n} ${n === 1 ? "user" : "users"}${q || status !== "all" ? ` of ${allUsers.length}` : ""}`;
+    }
     // pager
     if (filteredUsers.length > pageSize) {
-      pager.style.display = "flex";
+      pager.hidden = false;
       pageInfo.textContent = `Page ${currentPage + 1} / ${totalPages}`;
       prevBtn.disabled = currentPage === 0;
       nextBtn.disabled = currentPage >= totalPages - 1;
     } else {
-      pager.style.display = "none";
+      pager.hidden = true;
     }
     // sort arrows
     document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -180,13 +184,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const total = typeof totalFiltered === "number" ? totalFiltered : users.length;
     tbody.innerHTML = "";
     if (!total) {
-      table.style.display = "none";
-      emptyState.style.display = "block";
+      table.hidden = true;
+      emptyState.hidden = false;
       emptyState.textContent = (searchInput.value || statusFilter.value !== "all") ? `No users match filter.` : "No users found.";
       return;
     }
-    emptyState.style.display = "none";
-    table.style.display = "table";
+    emptyState.hidden = true;
+    table.hidden = false;
     users.forEach((u) => {
       const tr = document.createElement("tr");
       const locked = !!u.isLocked;
@@ -198,22 +202,31 @@ document.addEventListener("DOMContentLoaded", () => {
       if (fails >= 5) barClass = "danger";
       else if (fails >= 3) barClass = "warn";
       const attemptsHtml = `
-        <div class="attempts-cell">${fails}/5 — ${remaining} left
-          <div class="attempts-bar"><div class="attempts-fill ${barClass}" style="width:${barPct}%"></div></div>
+        <div class="attempts"><span>${fails}/5 — ${remaining} left</span>
+          <div class="attempts-bar"><div class="attempts-fill ${barClass}"></div></div>
         </div>`;
       const actions = `
-        <div style="display:flex; gap:6px; flex-wrap:wrap;">
-          ${locked ? `<button class="btn-small" data-unlock="${u.id || u._id}">Unlock</button>` : ""}
-          <button class="btn-small btn-secondary" data-pw="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Temp Pw</button>
-          <button class="btn-small btn-danger" data-del="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Delete</button>
+        <div class="row-actions">
+          ${locked ? `<button type="button" class="btn-small" data-unlock="${u.id || u._id}">Unlock</button>` : ""}
+          <div class="row-actions-secondary">
+            <button type="button" class="btn-small btn-outline" data-pw="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Temp password</button>
+            <button type="button" class="btn-small btn-outline btn-delete" data-del="${u.id || u._id}" data-email="${escapeHtml(u.email)}">Delete</button>
+          </div>
         </div>`;
+      const statusHtml = locked
+        ? '<span class="status status-locked">Locked</span>'
+        : pendingChange
+          ? '<span class="status status-change">Change password</span>'
+          : '<span class="status status-active">Active</span>';
       tr.innerHTML = `
-        <td data-label="Email">${escapeHtml(u.email)}</td>
-        <td data-label="Status">${locked ? '<span class="badge badge-locked">Locked</span>' : pendingChange ? '<span class="badge badge-locked">Must change password</span>' : '<span class="badge badge-active">Active</span>'}</td>
+        <td class="cell-email" data-label="Email">${escapeHtml(u.email)}</td>
+        <td data-label="Status">${statusHtml}</td>
         <td data-label="Attempts">${attemptsHtml}</td>
-        <td data-label="Created">${formatDate(u.createdAt)}</td>
+        <td class="cell-created" data-label="Created">${formatDate(u.createdAt)}</td>
         <td data-label="Actions">${actions}</td>
       `;
+      // Width set through the DOM rather than an inline style attribute
+      tr.querySelector(".attempts-fill").style.width = `${barPct}%`;
       tbody.appendChild(tr);
     });
 
@@ -245,7 +258,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (pwChecklist) pwChecklist.update();
         pwError.textContent = "";
         pwSuccess.textContent = "";
-        pwModal.style.display = "flex";
+        pwModal.hidden = false;
+        newPwInput.focus();
         attachEyes();
       });
     });
@@ -272,12 +286,15 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function closePwModal() {
-    pwModal.style.display = "none";
+    pwModal.hidden = true;
     currentPwUserId = null;
     currentPwEmail = null;
   }
 
   pwCancel.addEventListener("click", closePwModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !pwModal.hidden) closePwModal();
+  });
   pwModal.addEventListener("click", (e) => {
     if (e.target === pwModal) closePwModal();
   });
@@ -339,6 +356,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (prevBtn) prevBtn.addEventListener("click", () => { if (currentPage > 0) { currentPage--; applyAndRender(); } });
   if (nextBtn) nextBtn.addEventListener("click", () => { currentPage++; applyAndRender(); });
   document.querySelectorAll("th[data-sort]").forEach((th) => {
+    th.tabIndex = 0;
+    th.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); th.click(); }
+    });
     th.addEventListener("click", () => {
       const key = th.dataset.sort;
       if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
