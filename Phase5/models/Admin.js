@@ -14,6 +14,19 @@ const adminSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    lockUntil: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true },
 );

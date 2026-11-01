@@ -19,6 +19,14 @@ const userSchema = new mongoose.Schema(
       default: 0,
       min: 0,
     },
+    lockUntil: {
+      type: Date,
+      default: null,
+    },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+    },
     isLocked: {
       type: Boolean,
       default: false,

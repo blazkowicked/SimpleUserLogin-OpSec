@@ -1,28 +1,56 @@
 require("dotenv").config();
 const express = require("express");
 const path = require("path");
-const cors = require("cors");
+const helmet = require("helmet");
 const connectDB = require("./config/db");
+const getRealIp = require("./utils/getRealIp");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+if (!process.env.JWT_SECRET || !String(process.env.JWT_SECRET).trim()) {
+  console.error("[FATAL] JWT_SECRET missing in .env");
+  process.exit(1);
+}
+
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+
+app.use(
+  helmet({
+    hsts: {
+      maxAge: 31536000,
+      includeSubDomains: true,
+      preload: true,
+    },
+    contentSecurityPolicy: {
+      useDefaults: true,
+      directives: {
+        defaultSrc: ["'self'"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", "data:", "blob:"],
+        connectSrc: ["'self'"],
+      },
+    },
+  }),
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use((req, _res, next) => {
-  console.log(`${new Date().toISOString()} ${req.method} ${req.url}`);
+  const proto = req.protocol || req.headers["x-forwarded-proto"] || "http";
+  const ip = getRealIp(req);
+  console.log(`${new Date().toISOString()} ${req.method} ${req.url} proto=${proto} ip=${ip}`);
   next();
 });
 
-// Health check — always works, even if DB not connected
+// Health check — trimmed (no DB state)
 app.get("/health", (_req, res) => {
-  const states = ["disconnected", "connected", "connecting", "disconnecting"];
-  const mongoose = require("mongoose");
   res.json({
     status: "ok",
-    db: states[mongoose.connection.readyState] || "unknown",
     time: new Date().toISOString(),
   });
 });
@@ -46,14 +74,17 @@ app.use("/api", (_req, res) => res.status(404).json({ message: "API route not fo
 (async () => {
   await connectDB(process.env.MONGODB_URI);
   const uri = process.env.MONGODB_URI || "";
-  const isPlaceholderSrv = !uri || uri.includes("xxxxx") || /PASSWORD/i.test(uri) || uri.includes("<") || uri.includes(">");
+  const isPlaceholderSrv =
+    !uri ||
+    uri.includes("xxxxx") ||
+    /PASSWORD/i.test(uri) ||
+    uri.includes("<") ||
+    uri.includes(">") ||
+    /<.*password.*>/i.test(uri);
   if (isPlaceholderSrv) {
     console.log("\n[INFO] MONGODB_URI still placeholder — set real Atlas URI in Phase5/.env:");
     console.log("       MONGODB_URI=mongodb+srv://appuser:PASSWORD@cluster0.xxx.mongodb.net/userlogin?retryWrites=true&w=majority");
     console.log("       Then restart: npm run dev\n");
-  }
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.includes("dev-only")) {
-    console.warn("[WARN] JWT_SECRET is placeholder. Run: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" and paste into Phase5/.env");
   }
 
   app.listen(PORT, () => {

@@ -5,6 +5,10 @@ const auditLogSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  actor: {
+    type: String,
+    required: false,
+  },
   action: {
     type: String,
     required: true,

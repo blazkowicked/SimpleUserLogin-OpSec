@@ -10,6 +10,9 @@ const auth = require("../middleware/auth");
 const router = express.Router();
 
 const SALT_ROUNDS = 10;
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("dummy-password-for-timing", SALT_ROUNDS);
+const LOCK_DURATION_MS = 24 * 60 * 60 * 1000;
+const MAX_FAILED_ATTEMPTS = 5;
 
 function isDBReady(res) {
   if (mongoose.connection.readyState !== 1) {
@@ -22,8 +25,9 @@ function isDBReady(res) {
 }
 
 function signToken(payload) {
-  return jwt.sign(payload, process.env.JWT_SECRET || "dev-only-replace-me-please-generate-random-hex", {
-    expiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  const expiresIn = process.env.JWT_EXPIRES_IN || "15m";
+  return jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn,
   });
 }
 
@@ -53,9 +57,9 @@ router.post(
       if (existing) return res.status(409).json({ message: "Email already registered" });
 
       const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-      const user = await User.create({ email: normalized, passwordHash });
-      AuditLog.create({ email: normalized, action: "signup" }).catch((err) => console.error("[audit signup]", err));
-      const token = signToken({ id: user._id, email: user.email });
+      const user = await User.create({ email: normalized, passwordHash, tokenVersion: 0, failedLoginAttempts: 0, lockUntil: null });
+      AuditLog.create({ email: normalized, action: "signup", actor: normalized }).catch((err) => console.error("[audit signup]", err));
+      const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
       return res.status(201).json({ token, user: { id: user._id, email: user.email } });
     } catch (err) {
       console.error("[signup]", err);
@@ -72,54 +76,52 @@ router.post(
   async (req, res) => {
     if (!isDBReady(res)) return;
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+    if (!errors.isEmpty()) return res.status(400).json({ message: "Invalid credentials" });
 
     const { email, password } = req.body;
+    const normalized = (email || "").toLowerCase().trim();
     try {
-      const normalized = email.toLowerCase().trim();
       const user = await User.findOne({ email: normalized });
       if (!user) {
-        AuditLog.create({ email: normalized, action: "login_failure" }).catch((err) => console.error("[audit login_failure]", err));
+        await bcrypt.compare(password || "", DUMMY_PASSWORD_HASH);
+        AuditLog.create({ email: normalized, action: "login_failure", actor: null }).catch((err) => console.error("[audit login_failure]", err));
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      if (user.isLocked) {
-        return res.status(403).json({ message: "Account locked. Contact an administrator." });
+      const now = new Date();
+      if (user.lockUntil && user.lockUntil > now) {
+        AuditLog.create({ email: normalized, action: "login_failure", actor: null }).catch((err) => console.error("[audit login_failure]", err));
+        return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      const match = await bcrypt.compare(password, user.passwordHash);
+      const match = await bcrypt.compare(password || "", user.passwordHash);
       if (!match) {
-        AuditLog.create({ email: normalized, action: "login_failure" }).catch((err) => console.error("[audit login_failure]", err));
         user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-        if (user.failedLoginAttempts >= 5) {
-          user.isLocked = true;
-          AuditLog.create({ email: normalized, action: "account_locked" }).catch((err) => console.error("[audit account_locked]", err));
+        if (user.failedLoginAttempts >= MAX_FAILED_ATTEMPTS) {
+          user.lockUntil = new Date(Date.now() + LOCK_DURATION_MS);
+          AuditLog.create({ email: normalized, action: "account_locked", actor: null }).catch((err) => console.error("[audit account_locked]", err));
         }
         await user.save();
-        const remaining = Math.max(0, 5 - user.failedLoginAttempts);
-        const isNowLocked = user.isLocked;
-        const msg = isNowLocked
-          ? "Invalid credentials. Account locked after 5 failed attempts. Contact an administrator."
-          : `Invalid credentials. ${remaining} attempt(s) remaining before account is locked.`;
-        return res.status(401).json({
-          message: msg,
-          failedLoginAttempts: user.failedLoginAttempts,
-          attemptsRemaining: remaining,
-          isLocked: isNowLocked,
-        });
+        AuditLog.create({ email: normalized, action: "login_failure", actor: null }).catch((err) => console.error("[audit login_failure]", err));
+        return res.status(401).json({ message: "Invalid credentials" });
       }
 
-      if (user.failedLoginAttempts !== 0) {
+      if (user.failedLoginAttempts !== 0 || user.lockUntil) {
         user.failedLoginAttempts = 0;
+        user.lockUntil = null;
+        user.isLocked = false;
         await user.save();
       }
 
-      AuditLog.create({ email: normalized, action: "login_success" }).catch((err) => console.error("[audit login_success]", err));
-      const token = signToken({ id: user._id, email: user.email });
+      AuditLog.create({ email: normalized, action: "login_success", actor: normalized }).catch((err) => console.error("[audit login_success]", err));
+      const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
       return res.json({ token, user: { id: user._id, email: user.email } });
     } catch (err) {
       console.error("[login]", err);
-      return res.status(500).json({ message: "Server error during login" });
+      try {
+        await bcrypt.compare(password || "", DUMMY_PASSWORD_HASH);
+      } catch (_) {}
+      return res.status(401).json({ message: "Invalid credentials" });
     }
   },
 );
