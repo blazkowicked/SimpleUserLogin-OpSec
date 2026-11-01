@@ -8,6 +8,7 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
+const { sendMail } = require("../utils/mailer");
 
 const router = express.Router();
 
@@ -24,6 +25,15 @@ const adminLoginLimiter = createRateLimiter({
     const email = (req.body?.email || "").toLowerCase().trim();
     return email || "unknown";
   },
+  message: "Too many requests, please try again later.",
+});
+
+// Runs after adminAuth, so req.adminDoc is always set
+const testEmailLimiter = createRateLimiter({
+  scope: "admin_test_email",
+  windowMs: 15 * 60 * 1000,
+  max: 3,
+  keyFn: (req) => `admin:${req.adminDoc._id}`,
   message: "Too many requests, please try again later.",
 });
 
@@ -100,6 +110,25 @@ router.post(
     }
   },
 );
+
+// POST /api/admin/test-email — protected admin, sends only to the logged-in admin.
+// Send and audit write are awaited: Vercel can kill work left running after the response.
+router.post("/test-email", adminAuth, testEmailLimiter, async (req, res) => {
+  if (!isDBReady(res)) return;
+  const email = req.adminDoc.email;
+  try {
+    await sendMail({
+      to: email,
+      subject: "OpSec Login test email",
+      text: "This is a test email from OpSec Login. If you received it, email delivery is working.",
+    });
+  } catch (err) {
+    await AuditLog.create({ email, action: "test_email_failed", actor: email }).catch((auditErr) => console.error("[audit test_email_failed]", auditErr));
+    return res.status(502).json({ error: "Email could not be sent" });
+  }
+  await AuditLog.create({ email, action: "test_email_sent", actor: email }).catch((auditErr) => console.error("[audit test_email_sent]", auditErr));
+  return res.json({ sent: true });
+});
 
 // GET /api/admin/users — protected admin
 router.get("/users", adminAuth, async (req, res) => {

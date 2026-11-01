@@ -46,6 +46,20 @@ Polished UI in `Phase5/` is preserved. Backend is self-contained in this folder 
 - `POST /api/auth/login {email, password}` → `200 {token, user}` / `401`
 - `GET /api/auth/me` header `Authorization: Bearer <token>` → `200 {email, createdAt}`
 
+## Email
+`utils/mailer.js` sends through Gmail SMTP and exports `sendMail({ to, subject, text, html })` and `buildUrl(path)`.
+
+| Variable | Purpose |
+| --- | --- |
+| `SMTP_USER` | Gmail address that sends the mail |
+| `SMTP_PASS` | 16-character Gmail app password (spaces are stripped) |
+| `MAIL_FROM` | Sender, e.g. `App Name <same-gmail-address>`. Must be the `SMTP_USER` address, as Gmail rewrites others |
+| `APP_URL` | Public site URL with no trailing slash, used by `buildUrl` |
+
+- **Dev console mode:** outside production nothing is sent. Each email is printed to the server console, so the SMTP variables are optional locally.
+- **Production:** if `SMTP_USER`, `SMTP_PASS` or `MAIL_FROM` is missing, a warning is logged at startup and `sendMail` fails. Login still works. Vercel Production and Preview deployments both count as production.
+- **Test endpoint:** `POST /api/admin/test-email` with an admin Bearer token sends a test email to that admin's own address. Limited to 3 per 15 minutes per admin. Returns `200 {"sent":true}` or `502 {"error":"Email could not be sent"}`, and writes a `test_email_sent` / `test_email_failed` audit entry.
+
 ## Notes
 - If `MONGODB_URI` is placeholder, server still runs but `/api/auth/*` returns `503 Database not connected...` — set real URI and restart.
 - `JWT_SECRET` already set to random hex for you.
