@@ -30,26 +30,15 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", require("./routes/auth"));
 app.use("/api/admin", require("./routes/admin"));
 
-// IMPORTANT: do not expose .env, node_modules, server internals via static
-const staticRoot = __dirname;
-app.use(
-  express.static(staticRoot, {
-    index: false,
-    // block sensitive files if requested directly
-    setHeaders(res, filePath) {
-      if (filePath.endsWith(".env") || filePath.includes("node_modules") || filePath.endsWith("server.js")) {
-        res.setHeader("Cache-Control", "no-store");
-      }
-    },
-  }),
-);
+// Serve only the frontend folder
+app.use(express.static(path.join(__dirname, "public"), { index: false }));
 
 // Block sensitive files — return 404 instead of content
 app.get("/.env", (_req, res) => res.status(404).send("Not found"));
 app.get("/server.js", (_req, res) => res.status(404).send("Not found"));
 
 app.get("/", (_req, res) => {
-  res.sendFile(path.join(__dirname, "LoginPage.html"));
+  res.redirect("/LoginPage.html");
 });
 
 app.use("/api", (_req, res) => res.status(404).json({ message: "API route not found" }));
