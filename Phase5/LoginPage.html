@@ -16,9 +16,13 @@
         <input id="loginEmail" type="email" required autocomplete="email" />
 
         <label for="loginPassword">Password</label>
-        <input id="loginPassword" type="password" required autocomplete="current-password" />
+        <div class="password-wrap">
+          <input id="loginPassword" type="password" required autocomplete="current-password" />
+          <button type="button" class="eye-btn" data-eye="loginPassword" aria-label="Show password"></button>
+        </div>
 
         <div id="loginError" class="error" aria-live="polite"></div>
+        <div id="loginHint" class="hint" aria-live="polite"></div>
         <button type="submit">Login</button>
       </form>
 

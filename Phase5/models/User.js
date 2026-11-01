@@ -14,6 +14,15 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    failedLoginAttempts: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true },
 );

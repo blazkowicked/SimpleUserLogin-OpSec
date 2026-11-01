@@ -83,10 +83,35 @@ router.post(
         return res.status(401).json({ message: "Invalid credentials" });
       }
 
+      if (user.isLocked) {
+        return res.status(403).json({ message: "Account locked. Contact an administrator." });
+      }
+
       const match = await bcrypt.compare(password, user.passwordHash);
       if (!match) {
         AuditLog.create({ email: normalized, action: "login_failure" }).catch((err) => console.error("[audit login_failure]", err));
-        return res.status(401).json({ message: "Invalid credentials" });
+        user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+        if (user.failedLoginAttempts >= 5) {
+          user.isLocked = true;
+          AuditLog.create({ email: normalized, action: "account_locked" }).catch((err) => console.error("[audit account_locked]", err));
+        }
+        await user.save();
+        const remaining = Math.max(0, 5 - user.failedLoginAttempts);
+        const isNowLocked = user.isLocked;
+        const msg = isNowLocked
+          ? "Invalid credentials. Account locked after 5 failed attempts. Contact an administrator."
+          : `Invalid credentials. ${remaining} attempt(s) remaining before account is locked.`;
+        return res.status(401).json({
+          message: msg,
+          failedLoginAttempts: user.failedLoginAttempts,
+          attemptsRemaining: remaining,
+          isLocked: isNowLocked,
+        });
+      }
+
+      if (user.failedLoginAttempts !== 0) {
+        user.failedLoginAttempts = 0;
+        await user.save();
       }
 
       AuditLog.create({ email: normalized, action: "login_success" }).catch((err) => console.error("[audit login_success]", err));
