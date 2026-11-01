@@ -87,6 +87,14 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   attachEyeToggles();
 
+  // Live password checklist (F3). The server enforces the same rules.
+  if (window.PasswordRules) {
+    ["signupPassword", "resetPassword", "changePassword"].forEach((id) => {
+      const input = document.getElementById(id);
+      if (input) PasswordRules.attach(input);
+    });
+  }
+
   if (loginForm) {
     const loginHint = document.getElementById("loginHint");
     loginForm.addEventListener("submit", async (e) => {
@@ -116,7 +124,38 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Email format check (F4). Catches obvious typos before submitting; the server
+  // runs a stricter check, and the signup code proves the address is real.
+  function looksLikeEmail(value) {
+    return value.length <= 254 && /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(value);
+  }
+
   if (signupForm) {
+    const signupEmailInput = document.getElementById("signupEmail");
+    const emailFieldError = document.createElement("div");
+    emailFieldError.id = "signupEmailError";
+    emailFieldError.className = "field-error";
+    emailFieldError.setAttribute("aria-live", "polite");
+    const emailField = signupEmailInput.closest(".field");
+    if (emailField) emailField.append(emailFieldError);
+    signupEmailInput.setAttribute("aria-describedby", emailFieldError.id);
+    const emailWrap = signupEmailInput.closest(".input-wrap");
+
+    function checkSignupEmail() {
+      const value = signupEmailInput.value.trim();
+      const bad = value !== "" && !looksLikeEmail(value);
+      emailFieldError.textContent = bad ? "Enter a valid email, like name@example.com" : "";
+      if (emailWrap) emailWrap.classList.toggle("is-invalid", bad);
+      signupEmailInput.setAttribute("aria-invalid", bad ? "true" : "false");
+      return !bad;
+    }
+
+    signupEmailInput.addEventListener("blur", checkSignupEmail);
+    // Once an error is showing, clear it as soon as the address is fixed
+    signupEmailInput.addEventListener("input", () => {
+      if (emailFieldError.textContent) checkSignupEmail();
+    });
+
     signupForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(signupError, "");
@@ -130,13 +169,18 @@ document.addEventListener("DOMContentLoaded", () => {
         showError(signupError, "All fields are required");
         return;
       }
+      if (!checkSignupEmail()) {
+        signupEmailInput.focus();
+        return;
+      }
       if (password !== confirmPassword) {
         if (confirmWrap) confirmWrap.classList.add("is-invalid");
         showError(signupError, "Passwords do not match");
         return;
       }
-      if (password.length < 8) {
-        showError(signupError, "Password must be at least 8 characters");
+      const signupProblem = window.PasswordRules ? PasswordRules.problem(password) : null;
+      if (signupProblem) {
+        showError(signupError, signupProblem);
         return;
       }
 
@@ -260,8 +304,9 @@ document.addEventListener("DOMContentLoaded", () => {
           showError(changeError, "Passwords do not match");
           return;
         }
-        if (password.length < 8) {
-          showError(changeError, "Password must be at least 8 characters");
+        const changeProblem = window.PasswordRules ? PasswordRules.problem(password) : null;
+        if (changeProblem) {
+          showError(changeError, changeProblem);
           return;
         }
         const btn = forceChangeForm.querySelector("button[type=submit]");
@@ -331,8 +376,9 @@ document.addEventListener("DOMContentLoaded", () => {
         showError(resetError, "Passwords do not match");
         return;
       }
-      if (password.length < 8) {
-        showError(resetError, "Password must be at least 8 characters");
+      const resetProblem = window.PasswordRules ? PasswordRules.problem(password) : null;
+      if (resetProblem) {
+        showError(resetError, resetProblem);
         return;
       }
       const btn = resetForm.querySelector("button[type=submit]");

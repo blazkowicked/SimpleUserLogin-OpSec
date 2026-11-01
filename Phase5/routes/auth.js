@@ -13,6 +13,7 @@ const createRateLimiter = require("../middleware/rateLimiter");
 const getRealIp = require("../utils/getRealIp");
 const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
+const { passwordField } = require("../utils/passwordPolicy");
 
 const router = express.Router();
 
@@ -99,12 +100,7 @@ const forceChangeLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
-const passwordRules = () =>
-  body("password")
-    .isLength({ min: 8, max: 128 })
-    .withMessage("Password must be at least 8 characters")
-    .matches(/[A-Za-z]/)
-    .withMessage("Password must contain letters");
+const passwordRules = () => passwordField("password");
 
 // Awaited, unlike the older fire-and-forget writes: Vercel can kill work left running after the response
 function audit(email, action, actor) {

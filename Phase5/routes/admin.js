@@ -12,6 +12,7 @@ const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
+const { passwordField } = require("../utils/passwordPolicy");
 const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
@@ -279,11 +280,7 @@ router.put(
   "/users/:userId/password",
   adminAuth,
   [
-    body("newPassword")
-      .isLength({ min: 8, max: 128 })
-      .withMessage("Password must be at least 8 characters")
-      .matches(/[A-Za-z]/)
-      .withMessage("Password must contain letters"),
+    passwordField("newPassword"),
   ],
   async (req, res) => {
     if (!isDBReady(res)) return;

@@ -483,3 +483,52 @@ button:disabled {
     text-align: center;
   }
 }
+
+/* ---------- Password checklist (F3) ---------- */
+
+.pw-checklist {
+  list-style: none;
+  margin: 6px 0 10px;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.pw-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+}
+
+.pw-rule[hidden] {
+  display: none;
+}
+
+.pw-rule.met {
+  color: #256029;
+}
+
+.pw-rule.unmet {
+  color: #c0392b;
+}
+
+.pw-icon {
+  flex: 0 0 1em;
+  text-align: center;
+  font-family: ui-monospace, Menlo, monospace;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
