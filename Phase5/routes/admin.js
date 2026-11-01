@@ -8,6 +8,7 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
+const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
 
@@ -19,10 +20,11 @@ const MAX_FAILED_ATTEMPTS = 5;
 const adminLoginLimiter = createRateLimiter({
   scope: "admin_login",
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
   keyFn: (req) => {
+    const ip = getRealIp(req);
     const email = (req.body?.email || "").toLowerCase().trim();
-    return email || "unknown";
+    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
   },
   message: "Too many requests, please try again later.",
 });
@@ -65,7 +67,14 @@ router.post(
       }
 
       const now = new Date();
+      if (admin.lockUntil && admin.lockUntil <= now) {
+        admin.lockUntil = null;
+        admin.failedLoginAttempts = 0;
+        await admin.save();
+      }
+
       if (admin.lockUntil && admin.lockUntil > now) {
+        await bcrypt.compare(password || "", DUMMY_PASSWORD_HASH);
         AuditLog.create({ email: normalized, action: "admin_login_failure", actor: null }).catch((err) => console.error("[audit admin_login_failure]", err));
         return res.status(401).json({ message: "Invalid credentials" });
       }

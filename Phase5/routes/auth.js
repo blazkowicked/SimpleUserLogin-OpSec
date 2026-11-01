@@ -7,6 +7,7 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const auth = require("../middleware/auth");
 const createRateLimiter = require("../middleware/rateLimiter");
+const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
 
@@ -18,14 +19,24 @@ const MAX_FAILED_ATTEMPTS = 5;
 const authLoginLimiter = createRateLimiter({
   scope: "auth_login",
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
+  keyFn: (req) => {
+    const ip = getRealIp(req);
+    const email = (req.body?.email || "").toLowerCase().trim();
+    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
+  },
   message: "Too many requests, please try again later.",
 });
 
 const authSignupLimiter = createRateLimiter({
   scope: "auth_signup",
   windowMs: 15 * 60 * 1000,
-  max: 10,
+  max: 50,
+  keyFn: (req) => {
+    const ip = getRealIp(req);
+    const email = (req.body?.email || "").toLowerCase().trim();
+    return email ? `ip:${ip}:email:${email}` : `ip:${ip}`;
+  },
   message: "Too many requests, please try again later.",
 });
 
