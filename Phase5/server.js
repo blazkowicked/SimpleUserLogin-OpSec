@@ -29,7 +29,7 @@ app.use(
         defaultSrc: ["'self'"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        scriptSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'"],
       },
