@@ -3,34 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OPSEC Login</title>
-    <link rel="stylesheet" href="Style.css" />
+    <title>Sign in · OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
   </head>
-  <body>
-    <div class="container">
-      <h1>Welcome back</h1>
-      <p class="subtitle">Log in to Continue</p>
+  <body class="ops">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
+
+    <header class="brand">
+      <span class="wordmark">OpSec</span>
+    </header>
+
+    <main class="card">
+      <div class="card-header">
+        <h1>Sign in to OpSec</h1>
+        <p class="subtitle">Use your account email and password</p>
+      </div>
 
       <form id="loginForm" novalidate>
-        <label for="loginEmail">Email</label>
-        <input id="loginEmail" type="email" required autocomplete="email" />
-
-        <label for="loginPassword">Password</label>
-        <div class="password-wrap">
-          <input id="loginPassword" type="password" required autocomplete="current-password" />
-          <button type="button" class="eye-btn" data-eye="loginPassword" aria-label="Show password"></button>
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <div class="input-wrap">
+            <span class="prompt" aria-hidden="true">›</span>
+            <input id="loginEmail" type="email" required autocomplete="email" placeholder="you@example.com" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="loginPassword">Password</label>
+          <div class="input-wrap password-wrap">
+            <span class="prompt" aria-hidden="true">›</span>
+            <input id="loginPassword" type="password" required autocomplete="current-password" placeholder="Password" />
+            <button type="button" class="eye-btn" data-eye="loginPassword" aria-label="Show password"></button>
+          </div>
         </div>
 
         <div id="loginError" class="error" aria-live="polite"></div>
         <div id="loginHint" class="hint" aria-live="polite"></div>
-        <button type="submit">Login</button>
+        <button type="submit" class="btn-primary">Log in</button>
       </form>
 
       <p class="switch">
         Don't have an account? <a href="SignupPage.html">Sign up</a>
       </p>
-    </div>
+    </main>
 
+    <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
+
+    <script src="background.js"></script>
     <script src="index.js"></script>
   </body>
 </html>

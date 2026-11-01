@@ -3,17 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OPSEC Dashboard</title>
-    <link rel="stylesheet" href="Style.css" />
+    <title>OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
   </head>
-  <body>
-    <div class="container">
-      <h1 id="welcomeTitle">Loading...</h1>
-      <p id="welcomeSub" class="subtitle" style="display:none"></p>
-      <div id="landingError" class="error" aria-live="polite"></div>
-      <a href="LoginPage.html" id="logoutBtn">Logout</a>
-    </div>
+  <body class="ops">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
 
+    <header class="brand">
+      <span class="wordmark">OpSec</span>
+    </header>
+
+    <main class="card">
+      <div class="card-header">
+        <h1 id="welcomeTitle">Loading...</h1>
+        <p id="welcomeSub" class="subtitle" hidden>Your session is active</p>
+      </div>
+
+      <dl id="accountDetails" class="details" hidden>
+        <div class="row">
+          <dt>Email</dt>
+          <dd id="accountEmail"></dd>
+        </div>
+        <div class="row" id="accountSinceRow">
+          <dt>Member since</dt>
+          <dd id="accountSince"></dd>
+        </div>
+      </dl>
+
+      <div id="landingError" class="error" aria-live="polite"></div>
+      <a href="LoginPage.html" id="logoutBtn" class="btn-secondary">Log out</a>
+    </main>
+
+    <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
+
+    <script src="background.js"></script>
     <script src="index.js"></script>
   </body>
 </html>

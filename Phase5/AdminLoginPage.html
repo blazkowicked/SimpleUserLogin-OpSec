@@ -3,34 +3,58 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OPSEC Admin Login</title>
-    <link rel="stylesheet" href="Style.css" />
+    <title>Admin sign in · OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
   </head>
-  <body>
-    <div class="container">
-      <h1>Admin login</h1>
-      <p class="subtitle">OPSEC Administration</p>
+  <body class="ops">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
+
+    <header class="brand">
+      <span class="wordmark">OpSec</span>
+      <span class="brand-tag">Admin</span>
+    </header>
+
+    <main class="card">
+      <div class="card-header">
+        <h1>Sign in to OpSec admin</h1>
+        <p class="subtitle">Administrator accounts only</p>
+      </div>
 
       <form id="adminLoginForm" novalidate>
-        <label for="adminEmail">Email</label>
-        <input id="adminEmail" type="email" required autocomplete="email" />
-
-        <label for="adminPassword">Password</label>
-        <div class="password-wrap">
-          <input id="adminPassword" type="password" required autocomplete="current-password" />
-          <button type="button" class="eye-btn" data-eye="adminPassword" aria-label="Show password"></button>
+        <div class="field">
+          <label for="adminEmail">Email</label>
+          <div class="input-wrap">
+            <span class="prompt" aria-hidden="true">›</span>
+            <input id="adminEmail" type="email" required autocomplete="email" placeholder="admin@example.com" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="adminPassword">Password</label>
+          <div class="input-wrap password-wrap">
+            <span class="prompt" aria-hidden="true">›</span>
+            <input id="adminPassword" type="password" required autocomplete="current-password" placeholder="Password" />
+            <button type="button" class="eye-btn" data-eye="adminPassword" aria-label="Show password"></button>
+          </div>
         </div>
 
         <div id="adminLoginError" class="error" aria-live="polite"></div>
         <div id="adminHint" class="hint" aria-live="polite"></div>
-        <button type="submit">Login as Admin</button>
+        <button type="submit" class="btn-primary">Log in as admin</button>
       </form>
 
       <p class="switch">
         Not an admin? <a href="LoginPage.html">User login</a>
       </p>
-    </div>
+    </main>
 
+    <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
+
+    <script src="background.js"></script>
     <script>
       document.addEventListener("DOMContentLoaded", () => {
         const form = document.getElementById("adminLoginForm");
@@ -82,7 +106,7 @@
             const email = document.getElementById("adminEmail").value.trim();
             const password = document.getElementById("adminPassword").value;
             if (!email || !password) {
-              showError("Email and password are required.");
+              showError("Email and password are required");
               return;
             }
             const btn = form.querySelector("button[type=submit]");

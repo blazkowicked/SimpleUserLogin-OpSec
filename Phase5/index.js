@@ -84,7 +84,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const email = document.getElementById("loginEmail").value.trim();
       const password = document.getElementById("loginPassword").value;
       if (!email || !password) {
-        showError(loginError, "Email and password are required.");
+        showError(loginError, "Email and password are required");
         return;
       }
       const btn = loginForm.querySelector("button[type=submit]");
@@ -109,20 +109,23 @@ document.addEventListener("DOMContentLoaded", () => {
     signupForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(signupError, "");
+      const confirmWrap = document.getElementById("signupConfirmPassword").closest(".input-wrap");
+      if (confirmWrap) confirmWrap.classList.remove("is-invalid");
       const email = document.getElementById("signupEmail").value.trim();
       const password = document.getElementById("signupPassword").value;
       const confirmPassword = document.getElementById("signupConfirmPassword").value;
 
       if (!email || !password || !confirmPassword) {
-        showError(signupError, "All fields are required.");
+        showError(signupError, "All fields are required");
         return;
       }
       if (password !== confirmPassword) {
-        showError(signupError, "Passwords do not match.");
+        if (confirmWrap) confirmWrap.classList.add("is-invalid");
+        showError(signupError, "Passwords do not match");
         return;
       }
       if (password.length < 8) {
-        showError(signupError, "Password must be at least 8 characters.");
+        showError(signupError, "Password must be at least 8 characters");
         return;
       }
 
@@ -155,12 +158,17 @@ document.addEventListener("DOMContentLoaded", () => {
           method: "GET",
           headers: { Authorization: `Bearer ${token}` },
         });
-        welcomeTitle.textContent = `Welcome, ${user.email}! You are logged in.`;
-        if (welcomeSub) {
-          welcomeSub.style.display = "block";
-          const d = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "";
-          welcomeSub.textContent = d ? `Member since ${d}` : "";
-        }
+        welcomeTitle.textContent = "You're signed in";
+        if (welcomeSub) welcomeSub.hidden = false;
+        const details = document.getElementById("accountDetails");
+        const emailEl = document.getElementById("accountEmail");
+        const sinceEl = document.getElementById("accountSince");
+        const sinceRow = document.getElementById("accountSinceRow");
+        const d = user.createdAt ? new Date(user.createdAt).toLocaleDateString() : "";
+        if (emailEl) emailEl.textContent = user.email;
+        if (sinceEl) sinceEl.textContent = d;
+        if (sinceRow) sinceRow.hidden = !d;
+        if (details) details.hidden = false;
       } catch (err) {
         showError(landingError, err.message);
         if (err.message.toLowerCase().includes("token") || err.message.includes("401") || err.message.includes("authorization")) {
