@@ -224,7 +224,7 @@ router.delete("/users/:userId", adminAuth, async (req, res) => {
     await User.deleteOne({ _id: user._id });
 
     const actor = req.admin?.email || req.user?.email || null;
-    AuditLog.create({ email, action: "account_deleted", actor }).catch((err) => console.error("[audit account_deleted"], err));
+    AuditLog.create({ email, action: "account_deleted", actor }).catch((err) => console.error("[audit account_deleted]", err));
 
     return res.json({ message: "User deleted", user: { id: userId, email } });
   } catch (err) {
