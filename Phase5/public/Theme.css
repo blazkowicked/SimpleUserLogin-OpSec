@@ -1787,15 +1787,14 @@ body.ops.app {
 }
 
 .avatar {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 88px;
   height: 88px;
   margin-bottom: 10px;
   border-radius: 50%;
+  object-fit: cover;
   background: #1b1f26;
   border: 1px solid var(--input-border);
-  color: var(--text-muted);
 }
 
 .member-name {
