@@ -102,6 +102,14 @@ const forceChangeLimiter = createRateLimiter({
   message: "Too many requests, please try again later.",
 });
 
+const changePasswordLimiter = createRateLimiter({
+  scope: "auth_change_password",
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  keyFn: (req) => `user:${req.user?.id}`,
+  message: "Too many attempts, please try again later.",
+});
+
 const passwordRules = () => passwordField("password");
 
 // Awaited, unlike the older fire-and-forget writes: Vercel can kill work left running after the response
@@ -438,6 +446,64 @@ router.get("/me", auth, async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
+
+// ---------- Account settings ----------
+
+// POST /api/auth/change-password — needs the current password; every other device is signed out
+router.post(
+  "/change-password",
+  auth,
+  changePasswordLimiter,
+  [body("currentPassword").isString().notEmpty().withMessage("Enter your current password"), passwordRules()],
+  async (req, res) => {
+    if (!isDBReady(res)) return;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+
+    const { currentPassword, password, confirmPassword } = req.body;
+    if (confirmPassword !== undefined && password !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+    const user = req.currentUser;
+    try {
+      // A stolen session alone can't change the password
+      if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+        await audit(user.email, "password_change_failed", user.email);
+        return res.status(400).json({ message: "Current password is incorrect" });
+      }
+      if (await bcrypt.compare(password, user.passwordHash)) {
+        return res.status(400).json({ message: "Choose a password different from your current one" });
+      }
+
+      user.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+      await user.save();
+
+      const [{ deletedCount }] = await Promise.all([
+        Session.deleteMany({ userId: user._id, _id: { $ne: req.sessionId } }),
+        PasswordReset.deleteMany({ userId: user._id }),
+      ]);
+      await audit(user.email, "password_changed", user.email);
+      try {
+        await sendMail({
+          to: user.email,
+          subject: "Your OpSec password was changed",
+          text: `The password on your OpSec account was just changed, and every other device was signed out.
+
+If this was you, there's nothing to do.
+
+If it wasn't, reset your password right away:
+${buildUrl("/ForgotPasswordPage.html")}`,
+        });
+      } catch (err) {
+        console.error("[password changed email]", err.code, err.message);
+      }
+      return res.json({ message: "Password updated", signedOut: deletedCount });
+    } catch (err) {
+      console.error("[change password]", err);
+      return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
 
 // ---------- Sessions (signed-in devices) ----------
 
