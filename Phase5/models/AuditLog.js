@@ -19,4 +19,8 @@ const auditLogSchema = new mongoose.Schema({
   },
 });
 
+// Privacy policy: audit entries are kept for 10 years, then MongoDB deletes them on its own
+const TEN_YEARS_SECONDS = 10 * 365 * 24 * 60 * 60 + 2 * 24 * 60 * 60; // includes the leap days
+auditLogSchema.index({ timestamp: 1 }, { expireAfterSeconds: TEN_YEARS_SECONDS });
+
 module.exports = mongoose.model("AuditLog", auditLogSchema);
