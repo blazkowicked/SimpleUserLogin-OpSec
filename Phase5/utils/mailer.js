@@ -36,8 +36,10 @@ function getFrom() {
   return String(process.env.MAIL_FROM || "").trim().replace(/^"(.*)"$/, "$1");
 }
 
-function printToConsole({ from, to, subject, text, html }) {
-  const lines = ["", "========== [mailer] DEV EMAIL — NOT SENT ==========", `From:    ${from || "(MAIL_FROM not set)"}`, `To:      ${to}`, `Subject: ${subject}`, "--- text ---", text || "(none)"];
+function printToConsole({ from, to, replyTo, subject, text, html }) {
+  const lines = ["", "========== [mailer] DEV EMAIL — NOT SENT ==========", `From:    ${from || "(MAIL_FROM not set)"}`, `To:      ${to}`, `Subject: ${subject}`];
+  if (replyTo) lines.push(`Reply-To: ${replyTo}`);
+  lines.push("--- text ---", text || "(none)");
   if (html) lines.push("--- html ---", html);
   lines.push("===================================================", "");
   console.log(lines.join("\n"));
@@ -45,11 +47,11 @@ function printToConsole({ from, to, subject, text, html }) {
 
 // Resolves once the message is accepted (or printed, in dev). Rejects with a sanitized
 // Error carrying only .code and .message, so callers can log it safely.
-async function sendMail({ to, subject, text, html }) {
+async function sendMail({ to, replyTo, subject, text, html }) {
   const from = getFrom();
 
   if (!isProduction) {
-    printToConsole({ from, to, subject, text, html });
+    printToConsole({ from, to, replyTo, subject, text, html });
     return { delivered: false };
   }
 
@@ -61,7 +63,7 @@ async function sendMail({ to, subject, text, html }) {
   }
 
   try {
-    await getTransporter().sendMail({ from, to, subject, text, html });
+    await getTransporter().sendMail({ from, to, replyTo, subject, text, html });
     return { delivered: true };
   } catch (err) {
     const code = err.code || "UNKNOWN";

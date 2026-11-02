@@ -9,6 +9,7 @@ const AuditLog = require("../models/AuditLog");
 const OtpChallenge = require("../models/OtpChallenge");
 const PasswordReset = require("../models/PasswordReset");
 const Session = require("../models/Session");
+const Admin = require("../models/Admin");
 const auth = require("../middleware/auth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const getRealIp = require("../utils/getRealIp");
@@ -108,6 +109,14 @@ const changePasswordLimiter = createRateLimiter({
   max: 10,
   keyFn: (req) => `user:${req.user?.id}`,
   message: "Too many attempts, please try again later.",
+});
+
+const contactLimiter = createRateLimiter({
+  scope: "auth_contact",
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  keyFn: (req) => `user:${req.user?.id}`,
+  message: "You've sent several requests already. Please wait for an admin to reply.",
 });
 
 const passwordRules = () => passwordField("password");
@@ -501,6 +510,57 @@ ${buildUrl("/ForgotPasswordPage.html")}`,
     } catch (err) {
       console.error("[change password]", err);
       return res.status(500).json({ message: "Server error" });
+    }
+  },
+);
+
+// ---------- Contact an admin ----------
+
+// Labels live on the server, so nothing the user types ends up in the email subject
+const CONTACT_TOPICS = {
+  delete_account: "Delete my account",
+  correct_data: "Correct my data",
+  question: "Question about my account",
+};
+
+// POST /api/auth/contact — emails every admin; the reply goes to the signed-in user's own address
+router.post(
+  "/contact",
+  auth,
+  contactLimiter,
+  [
+    body("topic").isIn(Object.keys(CONTACT_TOPICS)).withMessage("Choose a request type"),
+    body("message").isString().trim().isLength({ min: 1, max: 2000 }).withMessage("Write a message of up to 2000 characters"),
+  ],
+  async (req, res) => {
+    if (!isDBReady(res)) return;
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) return res.status(400).json({ message: errors.array()[0].msg });
+
+    // The email comes from the session, never from the form, so nobody can ask on someone else's behalf
+    const user = req.currentUser;
+    const topic = CONTACT_TOPICS[req.body.topic];
+    try {
+      const admins = await Admin.find().select("email").lean();
+      if (!admins.length) return res.status(503).json({ message: "No admin is available to receive requests right now." });
+      await sendMail({
+        to: admins.map((a) => a.email).join(", "),
+        replyTo: user.email,
+        subject: `[OpSec] ${topic} · ${user.email}`,
+        text: `Request: ${topic}
+From: ${user.email} (signed in, verified by email code)
+Sent: ${new Date().toUTCString()}
+
+Message:
+${req.body.message}
+
+Reply to this email to answer the user. Account actions are done from the admin dashboard.`,
+      });
+      await audit(user.email, `contact_request_${req.body.topic}`, user.email);
+      return res.status(202).json({ message: "Request sent. An admin will reply to your email." });
+    } catch (err) {
+      console.error("[contact]", err.code, err.message);
+      return res.status(502).json({ message: "We couldn't send your request. Please try again." });
     }
   },
 );
