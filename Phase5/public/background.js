@@ -194,6 +194,8 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
     drawNet(dim, positions(dim, mapLeft, dt), "#2e333a", 1, "#2e333a", 2.5, 5);
+    // data-nets="dim" (Home) keeps only the faint network; the page draws its own route visual
+    if (canvas.dataset.nets === "dim") return;
     const bpos = positions(bright, mapRight, dt);
     drawNet(bright, bpos, "rgba(255, 255, 255, 0.55)", 1.2, "#ffffff", 2.5, 6);
     drawRoute(bpos, t, animate);

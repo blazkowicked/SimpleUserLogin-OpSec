@@ -9,39 +9,148 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
     <link rel="stylesheet" href="Theme.css" />
   </head>
-  <body class="ops">
+  <body class="ops app">
     <div class="bg-grid" aria-hidden="true"></div>
-    <canvas class="bg-network" aria-hidden="true"></canvas>
+    <canvas class="bg-network" data-nets="dim" aria-hidden="true"></canvas>
     <div class="bg-vignette" aria-hidden="true"></div>
 
-    <header class="brand">
-      <span class="wordmark">OpSec</span>
+    <header class="topbar">
+      <a class="wordmark" href="LandingPage.html" aria-label="OpSec home">OpSec</a>
+      <nav class="topnav" aria-label="Main">
+        <a class="topnav-link" href="LandingPage.html" aria-current="page">Home</a>
+        <a class="topnav-link" href="AboutPage.html">About</a>
+        <div class="account">
+          <button type="button" class="account-btn" id="accountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountMenu">
+            <span class="account-initial" data-user-initial aria-hidden="true"></span>
+            <span class="account-email" data-user-email></span>
+            <span class="sr-only">Account menu</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="account-menu" id="accountMenu" role="menu" hidden>
+            <div class="account-menu-head">
+              <span class="field-label">Signed in as</span>
+              <span class="account-menu-email" data-user-email></span>
+            </div>
+            <a role="menuitem" class="menu-item" href="AccountSettingsPage.html"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Account settings</a>
+            <button role="menuitem" type="button" class="menu-item" id="logoutAction"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>Log out</button>
+          </div>
+        </div>
+      </nav>
     </header>
 
-    <main class="card">
-      <div class="card-header">
-        <h1 id="welcomeTitle">Loading...</h1>
-        <p id="welcomeSub" class="subtitle" hidden>Your session is active</p>
-      </div>
-
-      <dl id="accountDetails" class="details" hidden>
-        <div class="row">
-          <dt>Email</dt>
-          <dd id="accountEmail"></dd>
+    <main class="app-main">
+      <section class="hero">
+        <div class="hero-text">
+          <p class="status status-active">Session active</p>
+          <h1 class="display">Your session is verified</h1>
+          <p class="lead">You got here by passing a password check and a one-time code sent to your email. Here's your account and every device signed in to it.</p>
+          <dl class="details summary">
+            <div class="row"><dt>Email</dt><dd data-user-email></dd></div>
+            <div class="row"><dt>Member since</dt><dd data-member-since></dd></div>
+            <div class="row"><dt>This device</dt><dd id="thisDevice"></dd></div>
+            <div class="row"><dt>Other devices</dt><dd id="otherDevices"></dd></div>
+          </dl>
+          <div class="hero-actions">
+            <a class="btn-primary" href="AccountSettingsPage.html">Account settings</a>
+            <a class="btn-secondary" href="AboutPage.html">About OpSec</a>
+          </div>
         </div>
-        <div class="row" id="accountSinceRow">
-          <dt>Member since</dt>
-          <dd id="accountSince"></dd>
+        <div class="route-wrap">
+          <canvas id="routeCanvas" role="img" aria-label="How you signed in: from this device, password checked, email code verified, session issued"></canvas>
         </div>
-      </dl>
+      </section>
 
-      <div id="landingError" class="error" aria-live="polite"></div>
-      <a href="LoginPage.html" id="logoutBtn" class="btn-secondary">Log out</a>
+      <section class="split">
+        <div class="split-intro">
+          <h2 class="section-title">How your account is protected</h2>
+          <p class="lead">These protections are built into every account. The last one is yours to use, from Account settings.</p>
+        </div>
+        <ul class="feature-list">
+          <li class="feature">
+            <span class="icon-box"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+            <div>
+              <h3>Hashed passwords</h3>
+              <p>Passwords are stored as bcrypt hashes, so nobody can read yours, including admins.</p>
+            </div>
+          </li>
+          <li class="feature">
+            <span class="icon-box"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span>
+            <div>
+              <h3>Email codes</h3>
+              <p>Every sign-in needs a 6-digit code sent to your email. A password alone isn't enough.</p>
+            </div>
+          </li>
+          <li class="feature">
+            <span class="icon-box"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
+            <div>
+              <h3>Lockout</h3>
+              <p>Repeated failed attempts lock the account, which stops password guessing.</p>
+            </div>
+          </li>
+          <li class="feature">
+            <span class="icon-box"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg></span>
+            <div>
+              <h3>Sessions you control</h3>
+              <p>See every device signed in and sign any of them out from Account settings.</p>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <div class="section-head">
+          <h2 class="section-title small">Signed-in devices</h2>
+          <a class="text-link" href="AccountSettingsPage.html#devices">Manage devices <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg></a>
+        </div>
+        <ul class="device-list panel" id="devicePreview"></ul>
+      </section>
     </main>
 
-    <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
+    <footer class="app-footer">
+      <span>© 2026 OpSec · ITC 303</span>
+      <button type="button" class="link-btn" data-open-privacy>Privacy policy</button>
+    </footer>
+
+    <div class="modal-overlay" id="privacyModal" hidden>
+      <div class="modal modal-policy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="policy-head">
+          <div>
+            <h2 id="privacyTitle">Privacy policy</h2>
+            <p class="modal-email">Last updated November 2, 2026</p>
+          </div>
+          <button type="button" class="icon-btn policy-close" data-close-privacy aria-label="Close privacy policy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="policy-body" tabindex="0">
+          <p class="policy-intro">OpSec handles your personal data in line with the Data Privacy Act of 2012 (Republic Act No. 10173). This explains what we collect, why, who can see it and how long we keep it.</p>
+          <section>
+            <h3>What we collect</h3>
+            <p>Your email address, a hashed version of your password (never the password itself), your failed sign-in attempts and lock status, and the devices you sign in from, recorded as browser and operating system only. We don't collect your IP address or location.</p>
+          </section>
+          <section>
+            <h3>Why we use it</h3>
+            <p>To sign you in, send your verification codes, protect your account from password guessing and takeover, and show you which devices are signed in.</p>
+          </section>
+          <section>
+            <h3>Who can see it</h3>
+            <p>Admins can see your email, account status, failed attempts and when your account was created. No one can see your password. Your email address is passed to our email provider only to deliver codes and alerts. We don't sell or share your data with anyone else.</p>
+          </section>
+          <section>
+            <h3>How long we keep it</h3>
+            <p>Your data stays while your account is active. When an account is deleted, its record is removed right away. A short audit entry (the email address, what happened, when, and which admin did it) is kept for 10 years for security and accountability, then permanently deleted.</p>
+          </section>
+          <section>
+            <h3>Your rights</h3>
+            <p>Under the Data Privacy Act you can ask to see, correct or delete your data, object to how it's used, and file a complaint with the National Privacy Commission. To make a request, use the <a href="AboutPage.html#contact">Contact an admin</a> form on the About page.</p>
+          </section>
+        </div>
+        <div class="policy-actions">
+          <button type="button" class="btn-primary" data-close-privacy>Close</button>
+        </div>
+      </div>
+    </div>
 
     <script src="background.js"></script>
-    <script src="index.js"></script>
+    <script src="app.js"></script>
+    <script src="home.js"></script>
   </body>
 </html>

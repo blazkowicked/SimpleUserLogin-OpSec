@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>About · OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
+  </head>
+  <body class="ops app">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" data-nets="all" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="wordmark" href="LandingPage.html" aria-label="OpSec home">OpSec</a>
+      <nav class="topnav" aria-label="Main">
+        <a class="topnav-link" href="LandingPage.html">Home</a>
+        <a class="topnav-link" href="AboutPage.html" aria-current="page">About</a>
+        <div class="account">
+          <button type="button" class="account-btn" id="accountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountMenu">
+            <span class="account-initial" data-user-initial aria-hidden="true"></span>
+            <span class="account-email" data-user-email></span>
+            <span class="sr-only">Account menu</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="account-menu" id="accountMenu" role="menu" hidden>
+            <div class="account-menu-head">
+              <span class="field-label">Signed in as</span>
+              <span class="account-menu-email" data-user-email></span>
+            </div>
+            <a role="menuitem" class="menu-item" href="AccountSettingsPage.html"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Account settings</a>
+            <button role="menuitem" type="button" class="menu-item" id="logoutAction"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>Log out</button>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="app-main">
+      <section class="about-top">
+        <div class="about-text">
+          <h1 class="display">About OpSec</h1>
+          <p class="lead">OpSec is a login system we built for Information Security 1. We designed it, threat-modeled it with STRIDE, and then hardened it through tracked revisions, each one tested against the version we first presented.</p>
+          <h2 class="section-title small">What it does</h2>
+          <ul class="prompt-list">
+            <li>Sign up with a one-time code sent to your email</li>
+            <li>Log in with your password and a fresh code each time</li>
+            <li>Lock an account after repeated failed attempts</li>
+            <li>Let admins unlock accounts, set temporary passwords and remove users</li>
+            <li>Show the devices signed in to your account and sign any of them out</li>
+          </ul>
+        </div>
+        <aside class="panel flow" aria-label="How a sign-in travels">
+          <p class="field-label">How a sign-in travels</p>
+          <ol class="flow-list">
+            <li class="flow-node"><span class="flow-dot"></span><div><span class="flow-name">Browser</span><span class="flow-detail">HTTPS · CSP blocks inline scripts</span></div></li>
+            <li class="flow-node"><span class="flow-dot"></span><div><span class="flow-name">Express API</span><span class="flow-detail">rate limits · input checks · helmet headers</span></div></li>
+            <li class="flow-node"><span class="flow-dot"></span><div><span class="flow-name">Password + email code</span><span class="flow-detail">bcrypt compare · 6-digit OTP</span></div></li>
+            <li class="flow-node is-key"><span class="flow-dot"></span><div><span class="flow-name">Signed session token</span><span class="flow-detail">checked on every request · revocable</span></div></li>
+            <li class="flow-node"><span class="flow-dot"></span><div><span class="flow-name">MongoDB Atlas</span><span class="flow-detail">hashed passwords · audit log</span></div></li>
+          </ol>
+        </aside>
+      </section>
+
+      <section>
+        <h2 class="section-title">The team</h2>
+        <p class="lead narrow">Three students, each owning a part of the system from the first design to the last revision.</p>
+        <ul class="team">
+          <li class="member"><span class="avatar"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span><span class="member-name">Joseph Miguel Estallo</span><span class="member-role">Frontend and Documentation</span></li>
+          <li class="member"><span class="avatar"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span><span class="member-name">Marc Jonas Cabic</span><span class="member-role">Backend and Implementation</span></li>
+          <li class="member"><span class="avatar"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></svg></span><span class="member-name">Gabriel Resultay</span><span class="member-role">Authentication and Threat modeling lead</span></li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 class="section-title small">Course</h2>
+        <p class="lead">ITC 303 at José Rizal University. The write-up, STRIDE threat model and revision log are in the project report.</p>
+      </section>
+
+      <section class="panel contact" id="contact">
+        <div class="contact-inner">
+          <h2 class="section-title">Contact an admin</h2>
+          <p class="lead">Want your account deleted, your data corrected, or have a question about your account? Send a request and an admin will reply to your email.</p>
+          <form id="contactForm" novalidate>
+            <div class="contact-row">
+              <div class="field">
+                <label for="contactEmail">Email</label>
+                <div class="input-wrap is-readonly">
+                  <span class="prompt" aria-hidden="true">›</span>
+                  <input id="contactEmail" type="email" readonly data-user-email-value aria-describedby="contactEmailHint" />
+                  <span class="input-hint" id="contactEmailHint">your account</span>
+                </div>
+              </div>
+              <div class="field">
+                <label for="contactTopic">Request</label>
+                <div class="select-wrap">
+                  <select id="contactTopic">
+                    <option value="delete_account">Delete my account</option>
+                    <option value="correct_data">Correct my data</option>
+                    <option value="question">Question about my account</option>
+                  </select>
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+                </div>
+              </div>
+            </div>
+            <div class="field">
+              <label for="contactMessage">Message</label>
+              <div class="textarea-wrap">
+                <span class="prompt" aria-hidden="true">›</span>
+                <textarea id="contactMessage" rows="5" maxlength="2000" placeholder="Tell us what you need and why"></textarea>
+              </div>
+            </div>
+            <div id="contactError" class="error" aria-live="polite"></div>
+            <div id="contactSuccess" class="success" aria-live="polite"></div>
+            <div class="contact-actions">
+              <button type="button" class="btn-secondary" data-open-privacy>Privacy policy</button>
+              <button type="submit" class="btn-primary">Send request</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>© 2026 OpSec · ITC 303</span>
+      <button type="button" class="link-btn" data-open-privacy>Privacy policy</button>
+    </footer>
+
+    <div class="modal-overlay" id="privacyModal" hidden>
+      <div class="modal modal-policy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="policy-head">
+          <div>
+            <h2 id="privacyTitle">Privacy policy</h2>
+            <p class="modal-email">Last updated November 2, 2026</p>
+          </div>
+          <button type="button" class="icon-btn policy-close" data-close-privacy aria-label="Close privacy policy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="policy-body" tabindex="0">
+          <p class="policy-intro">OpSec handles your personal data in line with the Data Privacy Act of 2012 (Republic Act No. 10173). This explains what we collect, why, who can see it and how long we keep it.</p>
+          <section>
+            <h3>What we collect</h3>
+            <p>Your email address, a hashed version of your password (never the password itself), your failed sign-in attempts and lock status, and the devices you sign in from, recorded as browser and operating system only. We don't collect your IP address or location.</p>
+          </section>
+          <section>
+            <h3>Why we use it</h3>
+            <p>To sign you in, send your verification codes, protect your account from password guessing and takeover, and show you which devices are signed in.</p>
+          </section>
+          <section>
+            <h3>Who can see it</h3>
+            <p>Admins can see your email, account status, failed attempts and when your account was created. No one can see your password. Your email address is passed to our email provider only to deliver codes and alerts. We don't sell or share your data with anyone else.</p>
+          </section>
+          <section>
+            <h3>How long we keep it</h3>
+            <p>Your data stays while your account is active. When an account is deleted, its record is removed right away. A short audit entry (the email address, what happened, when, and which admin did it) is kept for 10 years for security and accountability, then permanently deleted.</p>
+          </section>
+          <section>
+            <h3>Your rights</h3>
+            <p>Under the Data Privacy Act you can ask to see, correct or delete your data, object to how it's used, and file a complaint with the National Privacy Commission. To make a request, use the <a href="AboutPage.html#contact">Contact an admin</a> form on the About page.</p>
+          </section>
+        </div>
+        <div class="policy-actions">
+          <button type="button" class="btn-primary" data-close-privacy>Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="background.js"></script>
+    <script src="app.js"></script>
+    <script src="about.js"></script>
+  </body>
+</html>

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Account settings · OpSec</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=Geist:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="Theme.css" />
+  </head>
+  <body class="ops app">
+    <div class="bg-grid" aria-hidden="true"></div>
+    <canvas class="bg-network" data-nets="all" aria-hidden="true"></canvas>
+    <div class="bg-vignette" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="wordmark" href="LandingPage.html" aria-label="OpSec home">OpSec</a>
+      <nav class="topnav" aria-label="Main">
+        <a class="topnav-link" href="LandingPage.html">Home</a>
+        <a class="topnav-link" href="AboutPage.html">About</a>
+        <div class="account">
+          <button type="button" class="account-btn" id="accountBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="accountMenu">
+            <span class="account-initial" data-user-initial aria-hidden="true"></span>
+            <span class="account-email" data-user-email></span>
+            <span class="sr-only">Account menu</span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+          </button>
+          <div class="account-menu" id="accountMenu" role="menu" hidden>
+            <div class="account-menu-head">
+              <span class="field-label">Signed in as</span>
+              <span class="account-menu-email" data-user-email></span>
+            </div>
+            <a role="menuitem" class="menu-item" href="AccountSettingsPage.html"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>Account settings</a>
+            <button role="menuitem" type="button" class="menu-item" id="logoutAction"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>Log out</button>
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main class="app-main settings">
+      <h1 class="page-title">Account settings</h1>
+
+      <section class="panel setting">
+        <div class="setting-head">
+          <h2>Email</h2>
+          <p>The address you sign in with. The code for every sign-in goes here.</p>
+        </div>
+        <div class="readonly-value">
+          <span data-user-email></span>
+          <span class="input-hint">Can't be changed here</span>
+        </div>
+      </section>
+
+      <section class="panel setting">
+        <div class="setting-head">
+          <h2>Change password</h2>
+        </div>
+        <form id="changePasswordForm" novalidate>
+            <div class="field">
+              <label for="currentPassword">Current password</label>
+              <div class="input-wrap password-wrap">
+                <span class="prompt" aria-hidden="true">›</span>
+                <input id="currentPassword" type="password" autocomplete="current-password" placeholder="Current password" />
+                <button type="button" class="eye-btn" data-eye="currentPassword" aria-label="Show password"></button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="newPassword">New password</label>
+              <div class="input-wrap password-wrap">
+                <span class="prompt" aria-hidden="true">›</span>
+                <input id="newPassword" type="password" autocomplete="new-password" placeholder="New password" />
+                <button type="button" class="eye-btn" data-eye="newPassword" aria-label="Show password"></button>
+              </div>
+            </div>
+            <div class="field">
+              <label for="confirmNewPassword">Confirm new password</label>
+              <div class="input-wrap password-wrap">
+                <span class="prompt" aria-hidden="true">›</span>
+                <input id="confirmNewPassword" type="password" autocomplete="new-password" placeholder="Confirm new password" />
+                <button type="button" class="eye-btn" data-eye="confirmNewPassword" aria-label="Show password"></button>
+              </div>
+            </div>
+          <p class="note"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>Saving signs out every other device. You stay signed in here.</p>
+          <div id="changePasswordError" class="error" aria-live="polite"></div>
+          <div id="changePasswordSuccess" class="success" aria-live="polite"></div>
+          <button type="submit" class="btn-primary">Update password</button>
+        </form>
+      </section>
+
+      <section class="panel setting" id="devices">
+        <div class="setting-head with-action">
+          <div>
+            <h2>Signed-in devices</h2>
+            <p>Each browser you sign in from shows up here. Log out any device you don't recognize, then change your password.</p>
+          </div>
+          <button type="button" class="btn-small btn-outline btn-bulk" id="revokeOthers">Log out all other devices</button>
+        </div>
+        <ul class="device-list inset" id="deviceList"></ul>
+        <div id="devicesError" class="error" aria-live="polite"></div>
+        <div id="devicesSuccess" class="success" aria-live="polite"></div>
+        <p class="note"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>We email you when a device we haven't seen before signs in.</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>© 2026 OpSec · ITC 303</span>
+      <button type="button" class="link-btn" data-open-privacy>Privacy policy</button>
+    </footer>
+
+    <div class="modal-overlay" id="privacyModal" hidden>
+      <div class="modal modal-policy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="policy-head">
+          <div>
+            <h2 id="privacyTitle">Privacy policy</h2>
+            <p class="modal-email">Last updated November 2, 2026</p>
+          </div>
+          <button type="button" class="icon-btn policy-close" data-close-privacy aria-label="Close privacy policy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="policy-body" tabindex="0">
+          <p class="policy-intro">OpSec handles your personal data in line with the Data Privacy Act of 2012 (Republic Act No. 10173). This explains what we collect, why, who can see it and how long we keep it.</p>
+          <section>
+            <h3>What we collect</h3>
+            <p>Your email address, a hashed version of your password (never the password itself), your failed sign-in attempts and lock status, and the devices you sign in from, recorded as browser and operating system only. We don't collect your IP address or location.</p>
+          </section>
+          <section>
+            <h3>Why we use it</h3>
+            <p>To sign you in, send your verification codes, protect your account from password guessing and takeover, and show you which devices are signed in.</p>
+          </section>
+          <section>
+            <h3>Who can see it</h3>
+            <p>Admins can see your email, account status, failed attempts and when your account was created. No one can see your password. Your email address is passed to our email provider only to deliver codes and alerts. We don't sell or share your data with anyone else.</p>
+          </section>
+          <section>
+            <h3>How long we keep it</h3>
+            <p>Your data stays while your account is active. When an account is deleted, its record is removed right away. A short audit entry (the email address, what happened, when, and which admin did it) is kept for 10 years for security and accountability, then permanently deleted.</p>
+          </section>
+          <section>
+            <h3>Your rights</h3>
+            <p>Under the Data Privacy Act you can ask to see, correct or delete your data, object to how it's used, and file a complaint with the National Privacy Commission. To make a request, use the <a href="AboutPage.html#contact">Contact an admin</a> form on the About page.</p>
+          </section>
+        </div>
+        <div class="policy-actions">
+          <button type="button" class="btn-primary" data-close-privacy>Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="background.js"></script>
+    <script src="app.js"></script>
+    <script src="password-rules.js"></script>
+    <script src="eye.js"></script>
+    <script src="settings.js"></script>
+  </body>
+</html>
