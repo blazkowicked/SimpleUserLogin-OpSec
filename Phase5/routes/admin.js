@@ -229,6 +229,12 @@ router.post("/test-email", adminAuth, testEmailLimiter, async (req, res) => {
   return res.json({ sent: true });
 });
 
+// GET /api/admin/me — protected admin. Lets the admin login page confirm a session
+// is still valid without loading the whole user list.
+router.get("/me", adminAuth, (req, res) => {
+  return res.json({ id: req.adminDoc._id, email: req.adminDoc.email });
+});
+
 // GET /api/admin/users — protected admin
 router.get("/users", adminAuth, async (req, res) => {
   if (!isDBReady(res)) return;

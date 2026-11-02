@@ -96,6 +96,17 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   if (loginForm) {
+    // Already signed in on this device? Skip the login form. The server confirms the
+    // session first, so an expired or revoked token just gets cleared and the form stays.
+    const existingToken = getToken();
+    if (existingToken) {
+      api("/api/auth/me", { method: "GET", headers: { Authorization: `Bearer ${existingToken}` } })
+        .then(() => window.location.replace("LandingPage.html"))
+        .catch((err) => {
+          if (err.status === 401) clearSession();
+        });
+    }
+
     const loginHint = document.getElementById("loginHint");
     const loginEmailInput = document.getElementById("loginEmail");
     const loginEmailCheck = window.EmailCheck ? EmailCheck.attach(loginEmailInput) : null;

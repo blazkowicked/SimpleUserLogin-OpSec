@@ -35,10 +35,20 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // If already logged in as admin, go to dashboard
+  // Already signed in as admin on this device? Skip to the dashboard. The server confirms
+  // the session first, so an expired or revoked token just gets cleared and the form stays.
   const existing = localStorage.getItem(ADMIN_TOKEN_KEY);
   if (existing) {
-    // optional silent verification could be added, but just redirect
+    fetch("/api/admin/me", { headers: { Authorization: `Bearer ${existing}` } })
+      .then((res) => {
+        if (res.ok) {
+          window.location.replace("AdminDashboard.html");
+        } else if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem(ADMIN_TOKEN_KEY);
+          localStorage.removeItem(ADMIN_USER_KEY);
+        }
+      })
+      .catch(() => {});
   }
 
   const adminEmailInput = document.getElementById("adminEmail");
