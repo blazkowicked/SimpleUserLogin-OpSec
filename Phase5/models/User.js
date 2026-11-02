@@ -41,6 +41,11 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Device labels this account has signed in from, newest last, so a new one can trigger an alert email
+    knownDevices: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true },
 );

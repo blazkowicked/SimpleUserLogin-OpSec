@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
 const User = require("../models/User");
+const Session = require("../models/Session");
 
 async function auth(req, res, next) {
   const header = req.headers.authorization || "";
@@ -20,6 +22,15 @@ async function auth(req, res, next) {
     if (tokenVersion !== userTokenVersion) {
       return res.status(401).json({ message: "Token invalid or expired" });
     }
+    // Every token belongs to a session; a logged-out or revoked session ends the token too
+    if (!decoded.sid || !mongoose.isValidObjectId(decoded.sid)) {
+      return res.status(401).json({ message: "Token invalid or expired" });
+    }
+    const session = await Session.exists({ _id: decoded.sid, userId: user._id, expiresAt: { $gt: now } });
+    if (!session) {
+      return res.status(401).json({ message: "Token invalid or expired" });
+    }
+    req.sessionId = String(decoded.sid);
     req.user = decoded;
     req.currentUser = user;
     next();

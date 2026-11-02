@@ -8,11 +8,13 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const OtpChallenge = require("../models/OtpChallenge");
 const PasswordReset = require("../models/PasswordReset");
+const Session = require("../models/Session");
 const auth = require("../middleware/auth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const getRealIp = require("../utils/getRealIp");
 const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
+const { startSession } = require("../utils/session");
 const { passwordField } = require("../utils/passwordPolicy");
 
 const router = express.Router();
@@ -119,13 +121,6 @@ function isDBReady(res) {
     return false;
   }
   return true;
-}
-
-function signToken(payload) {
-  const expiresIn = process.env.JWT_EXPIRES_IN || "15m";
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn,
-  });
 }
 
 // POST /api/auth/signup
@@ -243,11 +238,11 @@ router.post(
   },
 );
 
-async function completeSignup(challenge, res) {
+async function completeSignup(challenge, req, res) {
   try {
     const user = await User.create({ email: challenge.email, passwordHash: challenge.pendingPasswordHash, emailVerified: true });
     await audit(user.email, "signup", user.email);
-    const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
+    const token = await startSession(user, req);
     return res.status(201).json({ token, user: { id: user._id, email: user.email } });
   } catch (err) {
     if (err.code !== 11000) console.error("[signup verify]", err);
@@ -255,7 +250,7 @@ async function completeSignup(challenge, res) {
   }
 }
 
-async function completeLogin(challenge, res) {
+async function completeLogin(challenge, req, res) {
   const user = await User.findById(challenge.subjectId);
   if (!user || (user.lockUntil && user.lockUntil > new Date())) {
     return res.status(401).json({ message: "This verification has expired. Please start again.", restart: true });
@@ -269,7 +264,7 @@ async function completeLogin(challenge, res) {
     return res.json({ passwordChangeRequired: true, changeToken: otp.signPasswordChangeToken(user) });
   }
   await audit(user.email, "login_success", user.email);
-  const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion || 0 });
+  const token = await startSession(user, req);
   return res.json({ token, user: { id: user._id, email: user.email } });
 }
 
@@ -296,7 +291,7 @@ router.post("/verify-otp", otpVerifyLimiter, [body("code").isString().matches(/^
   try {
     const result = await otp.verifyCode(pending.cid, req.body.code);
     if (result.status === "ok") {
-      return result.challenge.purpose === "signup" ? await completeSignup(result.challenge, res) : await completeLogin(result.challenge, res);
+      return result.challenge.purpose === "signup" ? await completeSignup(result.challenge, req, res) : await completeLogin(result.challenge, req, res);
     }
     if (result.challenge) await audit(result.challenge.email, result.status === "exhausted" ? "otp_exhausted" : "otp_failed", null);
     if (result.status === "exhausted" && result.challenge.purpose === "login") await recordOtpExhausted(result.challenge);
@@ -381,7 +376,11 @@ router.post("/reset-password", resetIpLimiter, [passwordRules()], async (req, re
     user.tokenVersion = (user.tokenVersion || 0) + 1;
     await user.save();
 
-    await Promise.all([PasswordReset.deleteMany({ userId: user._id }), OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id })]);
+    await Promise.all([
+      PasswordReset.deleteMany({ userId: user._id }),
+      OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id }),
+      Session.deleteMany({ userId: user._id }),
+    ]);
     await audit(user.email, "password_reset_completed", user.email);
     return res.json({ message: "Password updated. You can now log in." });
   } catch (err) {
@@ -419,7 +418,8 @@ router.post("/force-change-password", forceChangeLimiter, [passwordRules()], asy
 
     await audit(user.email, "forced_password_change_completed", user.email);
     await audit(user.email, "login_success", user.email);
-    const token = signToken({ id: user._id, email: user.email, tokenVersion: user.tokenVersion });
+    await Session.deleteMany({ userId: user._id });
+    const token = await startSession(user, req);
     return res.json({ token, user: { id: user._id, email: user.email } });
   } catch (err) {
     console.error("[force change]", err);
@@ -435,6 +435,69 @@ router.get("/me", auth, async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
     return res.json({ id: user._id, email: user.email, createdAt: user.createdAt });
   } catch (err) {
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// ---------- Sessions (signed-in devices) ----------
+
+// POST /api/auth/logout — ends this browser's session on the server, not just in the browser
+router.post("/logout", auth, async (req, res) => {
+  if (!isDBReady(res)) return;
+  try {
+    await Session.deleteOne({ _id: req.sessionId, userId: req.currentUser._id });
+    await audit(req.currentUser.email, "logout", req.currentUser.email);
+    return res.json({ message: "Logged out" });
+  } catch (err) {
+    console.error("[logout]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET /api/auth/sessions — devices signed in to this account, current one first
+router.get("/sessions", auth, async (req, res) => {
+  if (!isDBReady(res)) return;
+  try {
+    const sessions = await Session.find({ userId: req.currentUser._id, expiresAt: { $gt: new Date() } })
+      .sort({ createdAt: -1 })
+      .lean();
+    const list = sessions
+      .map((s) => ({ id: String(s._id), device: s.device, createdAt: s.createdAt, current: String(s._id) === req.sessionId }))
+      .sort((a, b) => Number(b.current) - Number(a.current));
+    return res.json({ sessions: list });
+  } catch (err) {
+    console.error("[sessions]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// POST /api/auth/sessions/revoke-others — log out every device except this one
+router.post("/sessions/revoke-others", auth, async (req, res) => {
+  if (!isDBReady(res)) return;
+  try {
+    const { deletedCount } = await Session.deleteMany({ userId: req.currentUser._id, _id: { $ne: req.sessionId } });
+    await audit(req.currentUser.email, "sessions_revoked_others", req.currentUser.email);
+    return res.json({ message: "Other devices logged out", signedOut: deletedCount });
+  } catch (err) {
+    console.error("[revoke others]", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+});
+
+// DELETE /api/auth/sessions/:id — log out one other device
+router.delete("/sessions/:id", auth, async (req, res) => {
+  if (!isDBReady(res)) return;
+  const { id } = req.params;
+  if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: "Device not found" });
+  if (id === req.sessionId) return res.status(400).json({ message: "Use Log out to sign out of this device" });
+  try {
+    // userId in the filter means nobody can end someone else's session by guessing an id
+    const { deletedCount } = await Session.deleteOne({ _id: id, userId: req.currentUser._id });
+    if (!deletedCount) return res.status(404).json({ message: "Device not found" });
+    await audit(req.currentUser.email, "session_revoked", req.currentUser.email);
+    return res.json({ message: "Device logged out" });
+  } catch (err) {
+    console.error("[revoke session]", err);
     return res.status(500).json({ message: "Server error" });
   }
 });

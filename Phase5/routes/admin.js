@@ -8,6 +8,7 @@ const User = require("../models/User");
 const AuditLog = require("../models/AuditLog");
 const OtpChallenge = require("../models/OtpChallenge");
 const PasswordReset = require("../models/PasswordReset");
+const Session = require("../models/Session");
 const adminAuth = require("../middleware/adminAuth");
 const createRateLimiter = require("../middleware/rateLimiter");
 const { sendMail, buildUrl } = require("../utils/mailer");
@@ -306,7 +307,11 @@ router.put(
       await user.save();
 
       // Anything started before this change must not survive it
-      await Promise.all([OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id }), PasswordReset.deleteMany({ userId: user._id })]);
+      await Promise.all([
+        OtpChallenge.deleteMany({ purpose: "login", subjectId: user._id }),
+        PasswordReset.deleteMany({ userId: user._id }),
+        Session.deleteMany({ userId: user._id }),
+      ]);
 
       const actor = req.adminDoc.email;
       await audit(user.email, "admin_password_changed", actor);
@@ -345,6 +350,7 @@ router.delete("/users/:userId", adminAuth, async (req, res) => {
 
     const email = user.email;
     await User.deleteOne({ _id: user._id });
+    await Session.deleteMany({ userId: user._id });
 
     const actor = req.admin?.email || req.user?.email || null;
     AuditLog.create({ email, action: "account_deleted", actor }).catch((err) => console.error("[audit account_deleted]", err));
