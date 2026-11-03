@@ -2260,3 +2260,19 @@ body.ops.app {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* ---------- Cloudflare Turnstile ---------- */
+
+.captcha {
+  display: flex;
+  justify-content: center;
+  min-height: 65px;
+}
+
+.captcha.captcha-error {
+  min-height: 0;
+  justify-content: flex-start;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--danger);
+}

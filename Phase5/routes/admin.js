@@ -14,6 +14,7 @@ const createRateLimiter = require("../middleware/rateLimiter");
 const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
 const { passwordField } = require("../utils/passwordPolicy");
+const { requireTurnstile } = require("../utils/turnstile");
 const getRealIp = require("../utils/getRealIp");
 
 const router = express.Router();
@@ -95,6 +96,7 @@ router.post(
   "/login",
   adminLoginIeLimiter,
   adminLoginIpLimiter,
+  requireTurnstile,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;

@@ -53,6 +53,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const adminEmailInput = document.getElementById("adminEmail");
   const adminEmailCheck = window.EmailCheck ? EmailCheck.attach(adminEmailInput) : null;
+    const adminCaptcha = window.Captcha ? Captcha.mount(document.getElementById("adminCaptcha")) : null;
 
   if (form) {
     form.addEventListener("submit", async (e) => {
@@ -68,12 +69,17 @@ document.addEventListener("DOMContentLoaded", () => {
         adminEmailInput.focus();
         return;
       }
+      const turnstileToken = adminCaptcha ? adminCaptcha.take() : "";
+      if (adminCaptcha && !turnstileToken) {
+        showError("Please complete the human check above");
+        return;
+      }
       const btn = form.querySelector("button[type=submit]");
       setLoading(btn, true);
       try {
         const data = await api("/api/admin/login", {
           method: "POST",
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, turnstileToken }),
         });
         sessionStorage.setItem("otpPending", JSON.stringify({ pendingToken: data.pendingToken, maskedEmail: data.maskedEmail, flow: "admin" }));
         window.location.href = "OtpPage.html";

@@ -112,6 +112,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const loginHint = document.getElementById("loginHint");
     const loginEmailInput = document.getElementById("loginEmail");
     const loginEmailCheck = window.EmailCheck ? EmailCheck.attach(loginEmailInput) : null;
+    const loginCaptcha = window.Captcha ? Captcha.mount(document.getElementById("loginCaptcha")) : null;
     loginForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(loginError, "");
@@ -126,12 +127,17 @@ document.addEventListener("DOMContentLoaded", () => {
         loginEmailInput.focus();
         return;
       }
+      const turnstileToken = loginCaptcha ? loginCaptcha.take() : "";
+      if (loginCaptcha && !turnstileToken) {
+        showError(loginError, "Please complete the human check above");
+        return;
+      }
       const btn = loginForm.querySelector("button[type=submit]");
       setLoading(btn, true);
       try {
         const data = await api("/api/auth/login", {
           method: "POST",
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, turnstileToken }),
         });
         startOtp(data, "user");
       } catch (err) {
@@ -178,6 +184,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
     // Email format check (F4), shared with login and forgot password
     const signupEmailCheck = window.EmailCheck ? EmailCheck.attach(signupEmailInput) : null;
+    const signupCaptcha = window.Captcha ? Captcha.mount(document.getElementById("signupCaptcha")) : null;
 
     signupForm.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -212,12 +219,17 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
+      const turnstileToken = signupCaptcha ? signupCaptcha.take() : "";
+      if (signupCaptcha && !turnstileToken) {
+        showError(signupError, "Please complete the human check above");
+        return;
+      }
       const btn = signupForm.querySelector("button[type=submit]");
       setLoading(btn, true);
       try {
         const data = await api("/api/auth/signup", {
           method: "POST",
-          body: JSON.stringify({ email, password, confirmPassword, acceptedPrivacy: !!consentBox?.checked }),
+          body: JSON.stringify({ email, password, confirmPassword, acceptedPrivacy: !!consentBox?.checked, turnstileToken }),
         });
         startOtp(data, "signup");
       } catch (err) {
@@ -437,6 +449,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const forgotHint = document.getElementById("forgotHint");
     const forgotEmailInput = document.getElementById("forgotEmail");
     const forgotEmailCheck = window.EmailCheck ? EmailCheck.attach(forgotEmailInput) : null;
+    const forgotCaptcha = window.Captcha ? Captcha.mount(document.getElementById("forgotCaptcha")) : null;
     forgotForm.addEventListener("submit", async (e) => {
       e.preventDefault();
       showError(forgotError, "");
@@ -450,12 +463,17 @@ document.addEventListener("DOMContentLoaded", () => {
         forgotEmailInput.focus();
         return;
       }
+      const turnstileToken = forgotCaptcha ? forgotCaptcha.take() : "";
+      if (forgotCaptcha && !turnstileToken) {
+        showError(forgotError, "Please complete the human check above");
+        return;
+      }
       const btn = forgotForm.querySelector("button[type=submit]");
       setLoading(btn, true);
       try {
         const data = await api("/api/auth/forgot-password", {
           method: "POST",
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email, turnstileToken }),
         });
         showHint(forgotHint, data.message);
       } catch (err) {

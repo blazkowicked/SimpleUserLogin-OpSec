@@ -29,7 +29,9 @@ app.use(
         defaultSrc: ["'self'"],
         fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-        scriptSrc: ["'self'"],
+        // Cloudflare Turnstile loads a script and draws the check inside an iframe
+        scriptSrc: ["'self'", "https://challenges.cloudflare.com"],
+        frameSrc: ["https://challenges.cloudflare.com"],
         imgSrc: ["'self'", "data:", "blob:"],
         connectSrc: ["'self'"],
       },
@@ -53,6 +55,13 @@ app.get("/health", (_req, res) => {
     status: "ok",
     time: new Date().toISOString(),
   });
+});
+
+// Public Turnstile site key for the browser widget (not a secret)
+app.get("/api/config/turnstile", (_req, res) => {
+  const siteKey = require("./utils/turnstile").getSiteKey();
+  if (!siteKey) return res.status(503).json({ message: "Human check is not configured" });
+  return res.json({ siteKey });
 });
 
 app.use("/api/auth", require("./routes/auth"));

@@ -17,6 +17,7 @@ const { sendMail, buildUrl } = require("../utils/mailer");
 const otp = require("../utils/otp");
 const { startSession } = require("../utils/session");
 const { passwordField } = require("../utils/passwordPolicy");
+const { requireTurnstile } = require("../utils/turnstile");
 
 const router = express.Router();
 
@@ -144,6 +145,7 @@ function isDBReady(res) {
 router.post(
   "/signup",
   authSignupIpLimiter,
+  requireTurnstile,
   [
     body("email").trim().isEmail().withMessage("Valid email required").isLength({ max: 254 }),
     passwordRules(),
@@ -197,6 +199,7 @@ router.post(
   "/login",
   authLoginIeLimiter,
   authLoginIpLimiter,
+  requireTurnstile,
   [body("email").trim().isEmail().withMessage("Valid email required"), body("password").notEmpty().withMessage("Password is required")],
   async (req, res) => {
     if (!isDBReady(res)) return;
@@ -341,7 +344,7 @@ router.post("/resend-otp", otpResendLimiter, async (req, res) => {
 });
 
 // POST /api/auth/forgot-password — same response whether or not the email exists
-router.post("/forgot-password", forgotIpLimiter, forgotEmailLimiter, [body("email").trim().isEmail()], async (req, res) => {
+router.post("/forgot-password", forgotIpLimiter, forgotEmailLimiter, requireTurnstile, [body("email").trim().isEmail()], async (req, res) => {
   if (!isDBReady(res)) return;
   const startedAt = Date.now();
   try {
