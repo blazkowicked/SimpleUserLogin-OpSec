@@ -167,7 +167,8 @@ body.ops {
 .card {
   position: relative;
   z-index: 3;
-  width: 320px;
+  /* 300px of content (350 minus 2x24 padding and 2x1 border): the width of Cloudflare's rectangular Turnstile widget */
+  width: 350px;
   max-width: 100%;
   display: flex;
   flex-direction: column;
@@ -2267,6 +2268,11 @@ body.ops.app {
   display: flex;
   justify-content: center;
   min-height: 65px;
+}
+
+/* On small phones the form is a little under 300px, so let the rectangle reach into the card's padding */
+.captcha.captcha-bleed {
+  margin-inline: calc((100% - 300px) / 2);
 }
 
 .captcha.captcha-error {

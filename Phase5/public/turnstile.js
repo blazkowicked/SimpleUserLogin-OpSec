@@ -36,11 +36,20 @@
 
     Promise.all([loadApi(), loadSiteKey()])
       .then(([turnstile, sitekey]) => {
+        // The rectangle needs 300px. Fill the form when there's room, reach into the card's
+        // padding when it's a little short, and only fall back to the square on very narrow screens.
+        const width = container.clientWidth || 300;
+        let size = "flexible";
+        if (width < 300 && width >= 252) {
+          size = "normal";
+          container.classList.add("captcha-bleed");
+        } else if (width < 252) {
+          size = "compact";
+        }
         widgetId = turnstile.render(container, {
           sitekey,
           theme: "dark",
-          // The normal widget is 300px wide; narrow phones get the compact one
-          size: container.clientWidth && container.clientWidth < 300 ? "compact" : "flexible",
+          size,
           callback: (t) => (token = t),
           "expired-callback": () => (token = ""),
           "error-callback": () => (token = ""),
