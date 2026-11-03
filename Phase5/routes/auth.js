@@ -147,6 +147,10 @@ router.post(
   [
     body("email").trim().isEmail().withMessage("Valid email required").isLength({ max: 254 }),
     passwordRules(),
+    // The checkbox alone can be skipped by calling the API directly
+    body("acceptedPrivacy")
+      .custom((value) => value === true)
+      .withMessage("Please confirm you've read the privacy policy"),
   ],
   async (req, res) => {
     if (!isDBReady(res)) return;

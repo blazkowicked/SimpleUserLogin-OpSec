@@ -141,8 +141,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Privacy policy popup for signed-out pages (the signed-in pages use app.js)
+  const privacyModal = document.getElementById("privacyModal");
+  if (privacyModal) {
+    let lastFocus = null;
+    const setPrivacy = (open) => {
+      privacyModal.hidden = !open;
+      if (open) {
+        lastFocus = document.activeElement;
+        privacyModal.querySelector(".policy-close")?.focus();
+      } else lastFocus?.focus();
+    };
+    document.querySelectorAll("[data-open-privacy]").forEach((el) =>
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        setPrivacy(true);
+      }),
+    );
+    privacyModal.querySelectorAll("[data-close-privacy]").forEach((b) => b.addEventListener("click", () => setPrivacy(false)));
+    privacyModal.addEventListener("click", (e) => {
+      if (e.target === privacyModal) setPrivacy(false);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !privacyModal.hidden) setPrivacy(false);
+    });
+  }
+
   if (signupForm) {
     const signupEmailInput = document.getElementById("signupEmail");
+    const consentBox = document.getElementById("signupConsent");
+    const consentError = document.getElementById("signupConsentError");
+    consentBox?.addEventListener("change", () => {
+      if (consentBox.checked && consentError) consentError.textContent = "";
+    });
     // Email format check (F4), shared with login and forgot password
     const signupEmailCheck = window.EmailCheck ? EmailCheck.attach(signupEmailInput) : null;
 
@@ -163,6 +194,11 @@ document.addEventListener("DOMContentLoaded", () => {
         signupEmailInput.focus();
         return;
       }
+      if (consentBox && !consentBox.checked) {
+        if (consentError) consentError.textContent = "Please confirm you've read the privacy policy";
+        consentBox.focus();
+        return;
+      }
       if (password !== confirmPassword) {
         if (confirmWrap) confirmWrap.classList.add("is-invalid");
         showError(signupError, "Passwords do not match");
@@ -179,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const data = await api("/api/auth/signup", {
           method: "POST",
-          body: JSON.stringify({ email, password, confirmPassword }),
+          body: JSON.stringify({ email, password, confirmPassword, acceptedPrivacy: !!consentBox?.checked }),
         });
         startOtp(data, "signup");
       } catch (err) {

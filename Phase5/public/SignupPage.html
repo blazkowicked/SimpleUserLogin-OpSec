@@ -49,6 +49,12 @@
           </div>
         </div>
 
+        <div class="consent">
+          <input id="signupConsent" type="checkbox" required aria-describedby="signupConsentError" />
+          <label for="signupConsent">I have read and understood the <a href="#privacy" data-open-privacy>privacy policy</a>.</label>
+        </div>
+        <div id="signupConsentError" class="field-error" aria-live="polite"></div>
+
         <div id="signupError" class="error" aria-live="polite"></div>
         <button type="submit" class="btn-primary">Create account</button>
       </form>
@@ -57,6 +63,44 @@
         Already have an account? <a href="LoginPage.html">Log in</a>
       </p>
     </main>
+
+    <div class="modal-overlay" id="privacyModal" hidden>
+      <div class="modal modal-policy" role="dialog" aria-modal="true" aria-labelledby="privacyTitle">
+        <div class="policy-head">
+          <div>
+            <h2 id="privacyTitle">Privacy policy</h2>
+            <p class="modal-email">Last updated November 2, 2026</p>
+          </div>
+          <button type="button" class="icon-btn policy-close" data-close-privacy aria-label="Close privacy policy"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <div class="policy-body" tabindex="0">
+          <p class="policy-intro">OpSec handles your personal data in line with the Data Privacy Act of 2012 (Republic Act No. 10173). This explains what we collect, why, who can see it and how long we keep it.</p>
+          <section>
+            <h3>What we collect</h3>
+            <p>Your email address, a hashed version of your password (never the password itself), your failed sign-in attempts and lock status, and the devices you sign in from, recorded as browser and operating system only. We don't collect your IP address or location.</p>
+          </section>
+          <section>
+            <h3>Why we use it</h3>
+            <p>To sign you in, send your verification codes, protect your account from password guessing and takeover, and show you which devices are signed in.</p>
+          </section>
+          <section>
+            <h3>Who can see it</h3>
+            <p>Admins can see your email, account status, failed attempts and when your account was created. No one can see your password. Your email address is passed to our email provider only to deliver codes and alerts. We don't sell or share your data with anyone else.</p>
+          </section>
+          <section>
+            <h3>How long we keep it</h3>
+            <p>Your data stays while your account is active. When an account is deleted, its record is removed right away. A short audit entry (the email address, what happened, when, and which admin did it) is kept for 10 years for security and accountability, then permanently deleted.</p>
+          </section>
+          <section>
+            <h3>Your rights</h3>
+            <p>Under the Data Privacy Act you can ask to see, correct or delete your data, object to how it's used, and file a complaint with the National Privacy Commission. To make a request, use the Contact an admin form on the About page after you sign in.</p>
+          </section>
+        </div>
+        <div class="policy-actions">
+          <button type="button" class="btn-primary" data-close-privacy>Close</button>
+        </div>
+      </div>
+    </div>
 
     <footer class="site-footer">ITC 303 · Estallo, Cabic, Resultay</footer>
 

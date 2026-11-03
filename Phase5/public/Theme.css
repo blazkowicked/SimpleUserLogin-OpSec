@@ -2223,3 +2223,40 @@ body.ops.app {
     width: 100%;
   }
 }
+
+
+/* ---------- Privacy consent checkbox (signup) ---------- */
+
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--text-sub);
+}
+
+.consent input[type="checkbox"] {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.consent label {
+  cursor: pointer;
+}
+
+.consent a {
+  color: var(--text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.consent a:focus-visible,
+.consent input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
